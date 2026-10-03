@@ -1,0 +1,109 @@
+# Contributing to Task Tracker
+
+First off: **thank you!** 🎉 Whether it's your first open-source contribution or your thousandth, you're welcome here. Bug reports, docs fixes, new themes, features, and thoughtful questions all make this project better.
+
+## 🧭 Ways to contribute
+
+- 🐛 **Report a bug.** [Open a bug report](https://github.com/Parv17k/tasktracker/issues/new?template=bug_report.yml)
+- 💡 **Suggest a feature.** [Open a feature request](https://github.com/Parv17k/tasktracker/issues/new?template=feature_request.yml)
+- 📝 **Improve the docs.** Typos, clearer wording and examples all count
+- 🎨 **Design a theme.** One of the most fun first contributions (see below)
+- 🧑‍💻 **Write code.** Pick up an issue or something from the [ideas list](#-ideas-to-get-you-started)
+
+## 🚀 Getting set up
+
+You need **Node.js 22.13 or newer**. That's the only requirement.
+
+```bash
+# 1. Fork the repo on GitHub, then:
+git clone https://github.com/<your-username>/tasktracker.git
+cd tasktracker
+npm install
+
+# 2. Run in dev mode (API + hot-reloading UI)
+npm run dev
+# → open http://localhost:5173
+```
+
+> 💡 **Tip:** to experiment without touching your real tasks, point the app at a throwaway database:
+> `TASKTRACKER_DB=/tmp/tt-dev.db npm run dev`
+
+## 🗺️ Project map
+
+```
+server/db.js       ← all data & business rules (start here for backend work)
+server/index.js    ← REST API, live updates (SSE), serves the UI
+mcp/index.js       ← MCP server for AI agents (uses server/db.js)
+shared/due.js      ← "Due tomorrow" / "Overdue 2d" labels, shared by UI + MCP
+web/src/
+  store.js         ← Zustand store with optimistic updates
+  themes.js        ← theme list for the picker
+  styles.css       ← theme colours (CSS variables) + global styles
+  dates.js         ← date presets & quick-add parser (@fri !high)
+  components/      ← Board, Column, TaskCard, TaskSheet, TopBar, …
+test/              ← node:test suite
+```
+
+**Golden rule:** business logic belongs in `server/db.js`, so the web UI and the MCP server always behave the same way. If you add a capability, consider exposing it in **both** the REST API and the MCP server.
+
+## 🎨 Adding a theme (a great first PR)
+
+1. In `web/src/styles.css`, copy an existing `[data-theme='…']` block and give it a new id. Every colour, font and shadow is a CSS variable.
+2. Add an entry to `web/src/themes.js` with a name, tagline and four swatch colours.
+3. If it's a dark theme, add its id to the `dark` list in `web/src/App.jsx`.
+4. Check that text is readable (aim for WCAG AA contrast), and that due-date chips, priority icons and the note pad all look good.
+5. Include a screenshot in your PR!
+
+## ✅ Before you open a pull request
+
+- [ ] `npm test` passes, and you've added tests for new data-layer behaviour
+- [ ] `npm run build` succeeds
+- [ ] You tried your change in the browser, ideally in a light theme **and** a dark one
+- [ ] UI changes include a screenshot or short GIF
+- [ ] The PR is focused on one thing (smaller PRs get merged faster)
+
+### Code style
+
+- Plain modern JavaScript (ES modules) and React function components
+- Match the surrounding code: naming, comment density, Tailwind utility style
+- Keep the UI **calm**: fewer buttons, sensible defaults, autosave over confirm dialogs
+- Use theme variables (`bg-card`, `text-muted`, `border-line`, …), never hard-coded colours
+
+### Commit messages
+
+Short and descriptive, in the imperative mood:
+
+```
+Add Solarized theme
+Fix overdue count ignoring tasks with a due time
+```
+
+## 💡 Ideas to get you started
+
+| Idea | Difficulty |
+| --- | --- |
+| New themes (Solarized, Dracula, Rosé Pine, Gruvbox…) | 🟢 Easy |
+| Drag to reorder subtasks in the task panel | 🟢 Easy |
+| Keyboard shortcuts help dialog (<kbd>?</kbd>) | 🟢 Easy |
+| Labels / tags on tasks, with filtering | 🟡 Medium |
+| Drag to reorder columns | 🟡 Medium |
+| Export / import the board as JSON or Markdown | 🟡 Medium |
+| Recurring tasks (daily, weekly…) | 🟡 Medium |
+| Command palette (<kbd>⌘K</kbd>) | 🟡 Medium |
+| Streamable-HTTP transport for the MCP server | 🟠 Advanced |
+| Multiple boards | 🟠 Advanced |
+| Desktop notifications for upcoming deadlines | 🟠 Advanced |
+
+Want to take one? Comment on (or open) an issue so nobody duplicates work, and feel free to ask questions there.
+
+## 🙋 Need help?
+
+Stuck? Unsure if an idea fits? [Open an issue](https://github.com/Parv17k/tasktracker/issues/new/choose). There are no silly questions. We'd rather help you finish a PR than have you give up on it.
+
+## 📜 Code of Conduct
+
+This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). Be kind, be patient, and assume good intent.
+
+---
+
+Thanks again for helping make Task Tracker better. 💚

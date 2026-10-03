@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 Contributing guide
+    url: https://github.com/Parv17k/tasktracker/blob/main/CONTRIBUTING.md
+    about: How to set up the project and open your first PR
