@@ -165,16 +165,73 @@ The agent writes straight to the same SQLite file, so the web server doesn't eve
 
 ## 🏗️ How it works
 
+```mermaid
+flowchart LR
+    subgraph clients["&nbsp;👥 Clients&nbsp;"]
+        direction TB
+        UI["🖥️ <b>React UI</b><br/><small>React 19 · Tailwind · dnd-kit</small>"]
+        AGENT["🤖 <b>AI Agent</b><br/><small>Claude · Cursor · any MCP client</small>"]
+    end
+
+    subgraph node["&nbsp;⚙️ Node.js&nbsp;"]
+        direction TB
+        API["⚡ <b>Fastify API</b><br/><small>server/index.js · REST + SSE</small>"]
+        MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 14 tools</small>"]
+        CORE["🧠 <b>Shared data layer</b><br/><small>server/db.js · rules &amp; validation</small>"]
+        WATCH["👀 <b>Change watcher</b><br/><small>PRAGMA data_version</small>"]
+    end
+
+    DB[("🗄️ <b>SQLite · WAL</b><br/><small>~/.tasktracker/tasktracker.db</small>")]
+
+    UI -->|"HTTP · JSON<br/>optimistic updates"| API
+    API -.->|"SSE · live updates"| UI
+    AGENT <-->|"stdio · JSON-RPC"| MCP
+    API --> CORE
+    MCP --> CORE
+    CORE <-->|"~1 ms queries"| DB
+    DB -.->|"writes from<br/>other processes"| WATCH
+    WATCH -.->|"broadcast"| API
+
+    classDef client fill:#eef2ff,stroke:#6366f1,stroke-width:2px,color:#1e1b4b
+    classDef agent fill:#f5f3ff,stroke:#8b5cf6,stroke-width:2px,color:#2e1065
+    classDef server fill:#ecfdf5,stroke:#10b981,stroke-width:2px,color:#064e3b
+    classDef core fill:#fff7ed,stroke:#f97316,stroke-width:2.5px,color:#431407
+    classDef watch fill:#f0f9ff,stroke:#0ea5e9,stroke-width:1.5px,stroke-dasharray:4 3,color:#082f49
+    classDef db fill:#fefce8,stroke:#ca8a04,stroke-width:2.5px,color:#422006
+
+    class UI client
+    class AGENT agent
+    class API,MCP server
+    class CORE core
+    class WATCH watch
+    class DB db
+
+    style clients fill:transparent,stroke:#94a3b8,stroke-width:1px,stroke-dasharray:6 4,color:#64748b
+    style node fill:transparent,stroke:#94a3b8,stroke-width:1px,stroke-dasharray:6 4,color:#64748b
 ```
-┌──────────────┐   REST + SSE    ┌────────────────┐
-│  React UI    │ ◀─────────────▶ │  Fastify API   │──┐
-│  (browser)   │   live updates  │ server/index.js│  │
-└──────────────┘                 └────────────────┘  │   ┌────────────────────┐
-                                                     ├──▶│  server/db.js      │──▶  SQLite (WAL)
-┌──────────────┐     stdio       ┌────────────────┐  │   │  one shared data   │     ~/.tasktracker/
-│  AI agent    │ ◀─────────────▶ │  MCP server    │──┘   │  layer & rules     │
-└──────────────┘                 │  mcp/index.js  │      └────────────────────┘
-                                 └────────────────┘
+
+### ⚡ Live sync: an agent completes a task and your board updates
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant AI as 🤖 AI Agent
+    participant MCP as 🔌 MCP Server
+    participant DB as 🗄️ SQLite
+    participant API as ⚡ Fastify API
+    participant UI as 🖥️ Browser
+
+    AI->>MCP: complete_task(id: 12, note: "Shipped ✅")
+    MCP->>DB: append note + move to Done (one transaction)
+    MCP-->>AI: ✓ Completed task 12 → Done
+    loop every 500 ms
+        API->>DB: PRAGMA data_version
+    end
+    DB-->>API: version changed
+    API-)UI: SSE event: change
+    UI->>API: GET /api/board
+    API-->>UI: full board (~1 ms)
+    Note over UI: Card glides into Done ✨<br/>no refresh needed
 ```
 
 - **One data layer** (`server/db.js`) holds every business rule, shared by the API and the MCP server, so humans and agents always behave the same way.
