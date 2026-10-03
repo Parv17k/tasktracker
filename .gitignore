@@ -1,0 +1,4 @@
+node_modules
+web/dist
+*.db
+*.db-*

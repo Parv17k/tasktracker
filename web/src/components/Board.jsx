@@ -1,0 +1,146 @@
+import { useMemo, useState } from 'react';
+import { closestCenter, closestCorners, DndContext, DragOverlay, KeyboardSensor, PointerSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { dueInfo } from '../../../shared/due.js';
+import { tasksForColumn, useBoard } from '../store';
+import { AddColumn, Column } from './Column';
+import { TaskCardOverlay } from './TaskCard';
+import { RemoveColumnDialog } from './RemoveColumnDialog';
+
+const colKey = (id) => `col-${id}`;
+
+function matches(task, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  return (
+    task.title.toLowerCase().includes(q) ||
+    task.description.toLowerCase().includes(q) ||
+    task.note.toLowerCase().includes(q) ||
+    task.subtasks.some((s) => s.title.toLowerCase().includes(q)) ||
+    `#${task.id}` === q
+  );
+}
+
+function dueMatches(task, filter, isDoneCol) {
+  if (filter === 'all') return true;
+  if (isDoneCol) return false;
+  const info = dueInfo(task.dueAt, task.dueHasTime);
+  if (!info) return false;
+  return filter === 'overdue' ? info.tone === 'overdue' : info.days <= 7;
+}
+
+/** Prefer the card under the pointer; fall back to the column; then to nearest corners. */
+function collision(args) {
+  const hits = pointerWithin(args);
+  const cards = hits.filter((h) => typeof h.id === 'number');
+  if (cards.length) return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter((c) => cards.some((h) => h.id === c.id)) });
+  if (hits.length) return hits;
+  return closestCorners(args);
+}
+
+export function Board() {
+  const columns = useBoard((s) => s.columns);
+  const tasks = useBoard((s) => s.tasks);
+  const query = useBoard((s) => s.query);
+  const dueFilter = useBoard((s) => s.dueFilter);
+  const { moveTask, setDragging } = useBoard.getState();
+
+  const visible = useMemo(() => columns.filter((c) => !c.hidden), [columns]);
+  const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+  const filtered = !!query || dueFilter !== 'all';
+
+  // column key -> ordered task ids, honouring the active filters
+  const derived = useMemo(() => {
+    const out = {};
+    for (const c of visible) out[colKey(c.id)] = tasksForColumn(tasks, c.id).filter((t) => matches(t, query) && dueMatches(t, dueFilter, c.isDone)).map((t) => t.id);
+    return out;
+  }, [visible, tasks, query, dueFilter]);
+
+  // while dragging we work on a local copy so cards can hop between columns smoothly
+  const [dragItems, setDragItems] = useState(null);
+  const [activeId, setActiveId] = useState(null);
+  const [removing, setRemoving] = useState(null);
+  const items = dragItems || derived;
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+
+  const findContainer = (id) => (id in items ? id : Object.keys(items).find((k) => items[k].includes(id)));
+
+  function onDragStart({ active }) {
+    setDragging(true);
+    setActiveId(active.id);
+    setDragItems(derived);
+  }
+
+  function onDragOver({ active, over }) {
+    if (!over) return;
+    const from = findContainer(active.id);
+    const to = findContainer(over.id);
+    if (!from || !to || from === to) return;
+    setDragItems((prev) => {
+      const src = prev[from].filter((id) => id !== active.id);
+      const dst = [...prev[to]];
+      const overIndex = dst.indexOf(over.id);
+      const below = over.rect && active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height / 2;
+      const index = overIndex >= 0 ? overIndex + (below ? 1 : 0) : dst.length;
+      dst.splice(index, 0, active.id);
+      return { ...prev, [from]: src, [to]: dst };
+    });
+  }
+
+  function finish() {
+    setDragItems(null);
+    setActiveId(null);
+    setDragging(false);
+  }
+
+  function onDragEnd({ active, over }) {
+    const container = over && findContainer(over.id);
+    if (!container) return finish();
+    let list = items[container];
+    const oldIndex = list.indexOf(active.id);
+    const overIndex = list.indexOf(over.id);
+    if (overIndex >= 0 && oldIndex !== overIndex) list = arrayMove(list, oldIndex, overIndex);
+
+    const columnId = Number(container.slice(4));
+    const task = tasksById.get(active.id);
+    // translate the (possibly filtered) visual index into an index among *all* tasks in the column
+    const pos = list.indexOf(active.id);
+    const nextId = list[pos + 1];
+    const all = tasksForColumn(tasks, columnId).filter((t) => t.id !== active.id);
+    const index = nextId != null ? all.findIndex((t) => t.id === nextId) : list[pos - 1] != null ? all.findIndex((t) => t.id === list[pos - 1]) + 1 : 0;
+
+    const currentIndex = tasksForColumn(tasks, task.columnId).findIndex((t) => t.id === task.id);
+    finish();
+    if (task.columnId !== columnId || currentIndex !== index) moveTask(active.id, columnId, index);
+  }
+
+  const activeTask = activeId != null ? tasksById.get(activeId) : null;
+
+  return (
+    <>
+      <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={finish}>
+        <div className="flex h-full items-start gap-3 overflow-x-auto px-6 pb-6 pt-1">
+          {visible.map((c, i) => (
+            <Column
+              key={c.id}
+              column={c}
+              taskIds={items[colKey(c.id)] || []}
+              tasksById={tasksById}
+              totalCount={tasks.filter((t) => t.columnId === c.id).length}
+              filtered={filtered}
+              isFirst={i === 0}
+              isLast={i === visible.length - 1}
+              onRemove={() => setRemoving(c)}
+            />
+          ))}
+          <AddColumn />
+        </div>
+        <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)' }}>
+          {activeTask && <TaskCardOverlay task={activeTask} isDone={visible.find((c) => c.id === activeTask.columnId)?.isDone} />}
+        </DragOverlay>
+      </DndContext>
+      <RemoveColumnDialog column={removing} onClose={() => setRemoving(null)} />
+    </>
+  );
+}
