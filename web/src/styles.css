@@ -457,6 +457,214 @@
   letter-spacing: -0.025em;
 }
 
+/* Crimson: deep red on parchment, bookish serif */
+[data-theme='crimson'] {
+  color-scheme: light;
+  --bg: #f4eee4;
+  --bg-image: linear-gradient(180deg, rgba(165, 28, 48, 0.05), transparent 220px);
+  --surface: #ebe2d3;
+  --card: #fffbf4;
+  --text: #2a1a1c;
+  --muted: #64514f;
+  --faint: #a08f86;
+  --border: #e0d4c2;
+  --border-strong: #c9b59c;
+  --hover: #e6dccb;
+  --accent: #a51c30;
+  --accent-fg: #ffffff;
+  --accent-soft: #f2dcd9;
+  --danger: #a51c30;
+  --warn: #8a5a00;
+  --ok: #2f6b45;
+  --note: #f8eccb;
+  --font-display: 'Newsreader Variable', Georgia, serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 6px;
+  --shadow-card: 0 1px 0 rgba(90, 30, 30, 0.07), 0 1px 3px rgba(90, 30, 30, 0.06);
+  --shadow-lift: 0 18px 40px -12px rgba(90, 20, 30, 0.35);
+  --shadow-pop: 0 14px 40px -10px rgba(90, 20, 30, 0.3);
+  --dot-l: 0.56;
+  --dot-c: 0.11;
+}
+
+[data-theme='crimson'] .font-display {
+  font-weight: 600;
+}
+
+/* Ivy: forest green, cream and brass, classic serif */
+[data-theme='ivy'] {
+  color-scheme: light;
+  --bg: #eef0e6;
+  --bg-image: linear-gradient(180deg, rgba(22, 74, 50, 0.05), transparent 220px);
+  --surface: #e3e7d8;
+  --card: #fbfbf5;
+  --text: #17271f;
+  --muted: #4f5f55;
+  --faint: #8f9a8e;
+  --border: #d6dccb;
+  --border-strong: #b7c1a6;
+  --hover: #dde3d0;
+  --accent: #164a32;
+  --accent-fg: #f4efdc;
+  --accent-soft: #d8e4d6;
+  --danger: #9c2f28;
+  --warn: #8d6418;
+  --ok: #2f6b45;
+  --note: #f3ebcf;
+  --font-display: 'Fraunces Variable', Georgia, serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 6px;
+  --shadow-card: 0 0 0 1px rgba(155, 125, 60, 0.14), 0 1px 2px rgba(22, 50, 35, 0.08);
+  --shadow-lift: 0 18px 36px -12px rgba(22, 50, 35, 0.38);
+  --shadow-pop: 0 14px 40px -10px rgba(22, 50, 35, 0.32);
+  --dot-l: 0.54;
+  --dot-c: 0.09;
+}
+
+[data-theme='ivy'] .font-display {
+  font-weight: 560;
+  letter-spacing: -0.01em;
+}
+
+/* Cardinal: red accents on warm charcoal */
+[data-theme='cardinal'] {
+  color-scheme: dark;
+  --bg: #1a1617;
+  --bg-image: linear-gradient(180deg, rgba(196, 30, 58, 0.08), transparent 260px);
+  --surface: #221d1e;
+  --card: #2a2425;
+  --text: #f0e8e6;
+  --muted: #b3a5a2;
+  --faint: #7d706e;
+  --border: #3a3233;
+  --border-strong: #52474a;
+  --hover: #332c2d;
+  --accent: #e0455c;
+  --accent-fg: #1f0b0f;
+  --accent-soft: #46262c;
+  --danger: #ff6b6b;
+  --warn: #e0b04a;
+  --ok: #6ccf8e;
+  --note: #2e2a22;
+  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 8px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-lift: 0 22px 44px -14px rgba(0, 0, 0, 0.7);
+  --shadow-pop: 0 16px 44px -10px rgba(0, 0, 0, 0.6);
+  --dot-l: 0.68;
+  --dot-c: 0.12;
+}
+
+[data-theme='cardinal'] .font-display {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Navy & Gold: deep navy with gold highlights, serif headings */
+[data-theme='navy-gold'] {
+  color-scheme: dark;
+  --bg: #0f1a2e;
+  --bg-image: linear-gradient(180deg, rgba(232, 180, 60, 0.06), transparent 260px);
+  --surface: #14213a;
+  --card: #1a2a47;
+  --text: #ecf0f7;
+  --muted: #a7b3c9;
+  --faint: #6c7a95;
+  --border: #263a5c;
+  --border-strong: #375078;
+  --hover: #213453;
+  --accent: #f0c04a;
+  --accent-fg: #1a1406;
+  --accent-soft: #3a3622;
+  --danger: #ff7a7a;
+  --warn: #f0c04a;
+  --ok: #6fd3a0;
+  --note: #2a2c2a;
+  --font-display: 'Fraunces Variable', Georgia, serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 8px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 22px 44px -14px rgba(0, 0, 0, 0.65);
+  --shadow-pop: 0 16px 44px -10px rgba(0, 0, 0, 0.55);
+  --dot-l: 0.7;
+  --dot-c: 0.11;
+}
+
+[data-theme='navy-gold'] .font-display {
+  font-weight: 600;
+}
+
+/* Sunset Orange: warm orange on cream, friendly and bright */
+[data-theme='sunset-orange'] {
+  color-scheme: light;
+  --bg: #faf3ea;
+  --bg-image: linear-gradient(180deg, rgba(191, 87, 0, 0.06), transparent 220px);
+  --surface: #f2e7d8;
+  --card: #fffdf9;
+  --text: #2b1e14;
+  --muted: #6b5847;
+  --faint: #a8957f;
+  --border: #eaddca;
+  --border-strong: #d6bf9f;
+  --hover: #f0e3d0;
+  --accent: #b34f00;
+  --accent-fg: #ffffff;
+  --accent-soft: #f8e1cc;
+  --danger: #b3261e;
+  --warn: #8a5a00;
+  --ok: #2e7d4f;
+  --note: #fbf0d0;
+  --font-display: 'Nunito Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 10px;
+  --shadow-card: 0 1px 0 rgba(120, 60, 10, 0.07), 0 1px 3px rgba(120, 60, 10, 0.06);
+  --shadow-lift: 0 18px 40px -12px rgba(120, 60, 10, 0.32);
+  --shadow-pop: 0 14px 40px -10px rgba(120, 60, 10, 0.28);
+  --dot-l: 0.6;
+  --dot-c: 0.12;
+}
+
+[data-theme='sunset-orange'] .font-display {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Harbor Gold: navy ink and golden accents on a light page */
+[data-theme='harbor-gold'] {
+  color-scheme: light;
+  --bg: #f3f1e8;
+  --bg-image: linear-gradient(180deg, rgba(0, 39, 76, 0.05), transparent 220px);
+  --surface: #e8e5d6;
+  --card: #fffef8;
+  --text: #0d2137;
+  --muted: #4c5a6b;
+  --faint: #8e98a3;
+  --border: #dedac6;
+  --border-strong: #c4bd98;
+  --hover: #e6e2cf;
+  --accent: #00274c;
+  --accent-fg: #ffcb3d;
+  --accent-soft: #f6e7b0;
+  --danger: #b3261e;
+  --warn: #8a5a00;
+  --ok: #2e7d4f;
+  --note: #fbf1c8;
+  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 8px;
+  --shadow-card: 0 1px 2px rgba(0, 30, 60, 0.08), 0 0 0 1px rgba(0, 39, 76, 0.04);
+  --shadow-lift: 0 20px 40px -14px rgba(0, 30, 60, 0.35);
+  --shadow-pop: 0 16px 44px -12px rgba(0, 30, 60, 0.3);
+  --dot-l: 0.56;
+  --dot-c: 0.12;
+}
+
+[data-theme='harbor-gold'] .font-display {
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
 /* column color dots: hue per name, lightness/chroma per theme */
 [data-color='slate'] { --hue: 255; --dot-c-scale: 0.25; }
 [data-color='blue'] { --hue: 250; }
@@ -479,7 +687,9 @@
 [data-theme='midnight'],
 [data-theme='espresso'],
 [data-theme='graphite'],
-[data-theme='terminal'] {
+[data-theme='terminal'],
+[data-theme='cardinal'],
+[data-theme='navy-gold'] {
   --bar-l: 0.65;
 }
 [data-color] {
