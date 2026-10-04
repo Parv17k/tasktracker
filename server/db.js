@@ -860,6 +860,35 @@ export function updateReminderSettings(patch = {}) {
   });
 }
 
+// ---------- AI chat provider (any OpenAI-compatible API) ----------
+
+/** Full config, including the API key. Server-side only. */
+export function getLlmConfig() {
+  return { baseUrl: '', apiKey: '', model: '', ...getSetting('llm', {}) };
+}
+
+/** Safe to send to the browser: the key itself never leaves the server. */
+export function getLlmSettings() {
+  const c = getLlmConfig();
+  return { baseUrl: c.baseUrl, model: c.model, hasKey: !!c.apiKey, keyHint: c.apiKey ? `…${c.apiKey.slice(-4)}` : '', configured: !!(c.baseUrl && c.model) };
+}
+
+/** `apiKey`: omit to keep the saved key, '' to remove it. */
+export function updateLlmSettings(patch = {}) {
+  return tx(() => {
+    const next = getLlmConfig();
+    if (patch.baseUrl !== undefined) {
+      const url = String(patch.baseUrl).trim().replace(/\/+$/, '');
+      if (url && !/^https?:\/\/[^\s/]+/i.test(url)) throw new AppError(400, 'Base URL must start with http:// or https://');
+      next.baseUrl = url;
+    }
+    if (patch.model !== undefined) next.model = cleanText(patch.model, 'model', { max: 200 }).trim();
+    if (patch.apiKey !== undefined) next.apiKey = cleanText(patch.apiKey, 'apiKey', { max: 1000 }).trim();
+    setSetting('llm', next);
+    return getLlmSettings();
+  });
+}
+
 /** VAPID keys for Web Push, created once per install. */
 export function getVapidKeys(generate) {
   let keys = getSetting('vapid', null);

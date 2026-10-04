@@ -25,6 +25,7 @@ import { COLUMN_COLORS } from '../themes';
 import { DueChip } from './Due';
 import { Logo, ThemePicker } from './TopBar';
 import { InstallButton, RemindersButton } from './Reminders';
+import { ChatButton } from './Chat';
 import { Button, cx, Dialog, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from './ui';
 
 const ICONS = ['📋', '✅', '🚀', '💼', '🏠', '🎯', '💡', '📚', '🛠️', '🎨', '💰', '🌱', '✈️', '🏋️', '🧪', '📈', '🛒', '❤️', '🎓', '🧘', '📝', '🔒', '🌍', '🎵'];
@@ -95,6 +96,7 @@ export default function Home() {
           <Logo />
           <span className="font-display text-[20px] text-fg">Task Tracker</span>
           <div className="ml-auto flex items-center gap-2">
+            <ChatButton />
             <RemindersButton />
             <ThemePicker />
             <InstallButton />

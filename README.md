@@ -34,6 +34,7 @@ Most task apps are either cloud-hosted and heavy, or plain text and bare. Task T
 - 🧘 **Low cognitive load.** Four columns, one click to open a card, no Save buttons. Everything autosaves.
 - ⚡ **Fast.** One SQLite query loads the whole board in about 1 ms, and the UI updates optimistically, so nothing waits on the network.
 - 🔌 **Built for agents.** A first-class [MCP](https://modelcontextprotocol.io) server lets Claude, Cursor or any MCP client read, create, move and complete your tasks, and you watch it happen live in the browser.
+- ✨ **Ask about your work.** Chat with your own AI provider (OpenAI, OpenRouter, Groq, Ollama, LM Studio, any OpenAI-compatible API) about what's due, what to focus on, or how a project is going.
 - 🔔 **Never miss a deadline.** Install it as an app and get system notifications before things are due, even when the window is closed.
 - 🏠 **Local-first.** Everything lives in one SQLite file on your machine. No account, no cloud, no telemetry.
 - 🎨 **Pleasant to look at.** Twenty-four focus-friendly themes, from warm Paper to neon Terminal.
@@ -134,6 +135,18 @@ Turn on reminders from the 🔔 bell, and Task Tracker sends system notification
 - **Click a notification** to jump straight to that task.
 
 > Reminders while the app is closed need the Task Tracker server running. Delivery goes through your browser's push service, so it needs an internet connection. Open windows also receive reminders over the local live-update stream.
+
+### ✨ Ask about your tasks
+
+Click the ✨ button in the top bar to chat about your projects and tasks with **any OpenAI-compatible provider**: OpenAI, OpenRouter, Groq, or a model running on your own computer with Ollama or LM Studio.
+
+- **Bring your own provider**: enter a base URL, an API key (optional for local models) and a model. *Load models* fetches the list from the provider and tests the connection.
+- **Knows your board**: each question carries a compact snapshot of your active projects, columns and tasks, including due dates, priorities, subtasks and tracked time. The project you have open comes first.
+- **Try asking** "What should I focus on today?", "What's due this week?", or "Summarize this project".
+- **Streaming replies** with a Stop button. The conversation stays put while you move between pages.
+- **Read-only for now**: it suggests changes, and you make them on the board. (Letting it act for you is on the [roadmap](#-roadmap).)
+
+> 🔒 **Your key stays local.** It's saved in your local database and only ever sent to the provider you chose; the browser only sees `…last4`. When you ask a question, a summary of your tasks goes to that provider, so pick a local model if your tasks shouldn't leave your machine.
 
 ## 🎨 Themes
 
@@ -342,9 +355,21 @@ sequenceDiagram
 | `GET` | `/api/push/key` | Public VAPID key for subscribing |
 | `POST` | `/api/push/subscribe` · `/unsubscribe` | Register or remove a browser for push |
 | `POST` | `/api/push/test` | Send a test notification |
+| `GET` / `PATCH` | `/api/settings/llm` | Chat provider (base URL, model, key). The key is write-only |
+| `GET` | `/api/chat/models` | Models offered by the provider (also a connection test) |
+| `POST` | `/api/chat` | `{ messages, projectId }`, streams the reply as plain text |
 | `GET` | `/api/events` | Server-Sent Events stream (`change`, `reminder`) |
 
 </details>
+
+## 🧭 Roadmap
+
+Ideas we'd love to build next, and help is welcome:
+
+- 🤖 **A planning agent inside the app.** The chat grows into an agent that manages your timeline: it proposes deadlines, rebalances priorities when things slip, breaks goals into tasks and subtasks, and checks in on what's at risk. Every change is shown for your approval first, and it uses the same data layer as the MCP tools.
+- 🎯 **Goals**: link tasks to longer-term goals and track progress toward them.
+- 🔁 Recurring tasks, labels and filters, and export/import.
+
 
 ## 🛠️ Development
 

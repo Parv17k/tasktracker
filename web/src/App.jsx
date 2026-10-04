@@ -6,6 +6,7 @@ import { Board } from './components/Board';
 import { TopBar } from './components/TopBar';
 import { TaskSheet } from './components/TaskSheet';
 import { ArchiveSheet } from './components/ArchiveSheet';
+import { ChatSheet } from './components/Chat';
 import { TipProvider } from './components/ui';
 import Home from './components/Home';
 import { useProjectRoute } from './router';
@@ -92,6 +93,7 @@ export default function App() {
           <ArchiveSheet open={archiveOpen} onOpenChange={setArchiveOpen} />
         </>
       )}
+      <ChatSheet />
       <Toaster
         position="bottom-center"
         theme={dark ? 'dark' : 'light'}

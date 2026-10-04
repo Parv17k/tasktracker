@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from './db.js';
 import { startReminders } from './reminders.js';
+import { listModels, streamChat } from './chat.js';
 
 const PORT = Number(process.env.PORT) || 1717;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -92,6 +93,30 @@ app.get('/api/push/key', async () => ({ publicKey: reminders.publicKey }));
 app.post('/api/push/subscribe', async (req) => store.savePushSubscription(req.body));
 app.post('/api/push/unsubscribe', async (req) => store.deletePushSubscription(req.body?.endpoint));
 app.post('/api/push/test', async () => reminders.test());
+
+// ---------- AI chat ----------
+
+app.get('/api/settings/llm', async () => store.getLlmSettings());
+app.patch('/api/settings/llm', async (req) => store.updateLlmSettings(req.body));
+app.get('/api/chat/models', async () => ({ models: await listModels() }));
+app.post('/api/chat', async (req, reply) => {
+  const { messages, projectId } = req.body || {};
+  // stop the upstream request if the user presses Stop or closes the tab
+  const ac = new AbortController();
+  reply.raw.on('close', () => !reply.raw.writableFinished && ac.abort());
+  await streamChat({
+    messages,
+    projectId: projectId == null ? null : Number(projectId),
+    signal: ac.signal,
+    onStart: () => {
+      reply.hijack();
+      reply.raw.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
+    },
+    write: (text) => reply.raw.write(text),
+  });
+  if (reply.sent || reply.raw.headersSent) reply.raw.end();
+  else reply.code(204).send();
+});
 
 app.get('/api/home', async () => ({ projects: store.listProjects(), dueSoon: store.dueSoon({ days: 7, limit: 12 }) }));
 app.get('/api/projects', async () => store.listProjects());

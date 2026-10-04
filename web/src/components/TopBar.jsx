@@ -5,6 +5,7 @@ import { useBoard } from '../store';
 import { THEMES } from '../themes';
 import { navigate, projectPath } from '../router';
 import { InstallButton, RemindersButton } from './Reminders';
+import { ChatButton } from './Chat';
 import { Button, ColorDot, cx, IconButton, Popover, PopoverContent, PopoverTrigger, Tip } from './ui';
 
 export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
@@ -101,6 +102,7 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
           </Button>
         </Tip>
 
+        <ChatButton />
         <RemindersButton />
         <ThemePicker />
         <InstallButton />

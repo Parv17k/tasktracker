@@ -34,6 +34,7 @@ npm run dev
 server/db.js        ← all data & business rules: projects, columns, tasks, settings (start here)
 server/index.js     ← REST API, live updates (SSE), serves the UI
 server/reminders.js ← deadline reminder engine + Web Push delivery
+server/chat.js      ← AI chat: board snapshot + streaming proxy to an OpenAI-compatible provider
 mcp/index.js        ← MCP server for AI agents (uses server/db.js)
 shared/due.js       ← "Due tomorrow" / "Overdue 2d" labels, shared by UI + MCP
 web/public/
@@ -46,7 +47,7 @@ web/src/
   themes.js         ← theme list for the picker
   styles.css        ← theme colours (CSS variables) + global styles
   dates.js          ← date presets & quick-add parser (@fri !high)
-  components/       ← Home, Board, Column, TaskCard, TaskSheet, Reminders, TopBar, …
+  components/       ← Home, Board, Column, TaskCard, TaskSheet, Reminders, Chat, TopBar, …
 test/               ← node:test suite
 ```
 
@@ -96,6 +97,8 @@ Fix overdue count ignoring tasks with a due time
 | Export / import the board as JSON or Markdown | 🟡 Medium |
 | Recurring tasks (daily, weekly…) | 🟡 Medium |
 | Command palette (<kbd>⌘K</kbd>) | 🟡 Medium |
+| Clickable `#id` task links in chat replies | 🟢 Easy |
+| Planning agent: let the chat propose task changes (deadlines, priorities, breakdowns) that you approve with one click | 🟠 Advanced |
 | Streamable-HTTP transport for the MCP server | 🟠 Advanced |
 | Move tasks between projects | 🟠 Advanced |
 | HTTPS on the local network, so phones can install the app | 🟠 Advanced |
