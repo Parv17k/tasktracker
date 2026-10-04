@@ -9,16 +9,36 @@ import { RemoveColumnDialog } from './RemoveColumnDialog';
 
 const colKey = (id) => `col-${id}`;
 
-function matches(task, query) {
-  if (!query) return true;
-  const q = query.toLowerCase();
-  return (
-    task.title.toLowerCase().includes(q) ||
-    task.description.toLowerCase().includes(q) ||
-    task.note.toLowerCase().includes(q) ||
-    task.subtasks.some((s) => s.title.toLowerCase().includes(q)) ||
-    `#${task.id}` === q
-  );
+const PRIORITY_WORDS = { low: 'low priority', medium: 'medium priority', high: 'high priority', urgent: 'urgent priority' };
+
+/** Every piece of information on a task, as one searchable string. */
+function searchText(task, column) {
+  const due = dueInfo(task.dueAt, task.dueHasTime);
+  return [
+    `#${task.id}`,
+    task.title,
+    task.description,
+    task.note,
+    ...task.subtasks.map((s) => s.title),
+    column?.name,
+    PRIORITY_WORDS[task.priority],
+    due && `${due.label} ${due.date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`,
+    task.timerStartedAt && 'tracking timer running',
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase();
+}
+
+/** All words must appear somewhere on the task, in any field and any order. */
+function matches(task, column, query) {
+  if (!query.trim()) return true;
+  const text = searchText(task, column);
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => text.includes(word));
 }
 
 function dueMatches(task, filter, isDoneCol) {
@@ -52,7 +72,7 @@ export function Board() {
   // column key -> ordered task ids, honouring the active filters
   const derived = useMemo(() => {
     const out = {};
-    for (const c of visible) out[colKey(c.id)] = tasksForColumn(tasks, c.id).filter((t) => matches(t, query) && dueMatches(t, dueFilter, c.isDone)).map((t) => t.id);
+    for (const c of visible) out[colKey(c.id)] = tasksForColumn(tasks, c.id).filter((t) => matches(t, c, query) && dueMatches(t, dueFilter, c.isDone)).map((t) => t.id);
     return out;
   }, [visible, tasks, query, dueFilter]);
 

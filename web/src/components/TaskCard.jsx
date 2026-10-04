@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Archive, Check, ListChecks, StickyNote, Timer, AlignLeft } from 'lucide-react';
+import { Archive, Check, GripVertical, ListChecks, StickyNote, Timer, AlignLeft } from 'lucide-react';
 import { useBoard } from '../store';
 import { DueChip } from './Due';
 import { cx, Tip } from './ui';
@@ -39,11 +39,13 @@ function CardBody({ task, isDone, overlay }) {
   return (
     <div
       className={cx(
-        'group/card relative rounded-[var(--radius)] border border-line bg-card px-3 py-2.5 shadow-card transition-[border-color,box-shadow,transform] duration-150',
-        'hover:border-line-strong',
+        'group/card relative rounded-[var(--radius)] border border-line bg-card py-2.5 pl-4 pr-3 shadow-card transition-[border-color,box-shadow,transform] duration-150',
+        !overlay && 'hover:-translate-y-px hover:border-line-strong hover:shadow-lift/40',
         overlay && 'rotate-[1.5deg] cursor-grabbing border-line-strong shadow-lift'
       )}
     >
+      {/* drag affordance: appears on hover, the whole card is the handle */}
+      <GripVertical aria-hidden className={cx('absolute left-0.5 top-3 size-3.5 text-faint transition-opacity', overlay ? 'opacity-70' : 'opacity-0 group-hover/card:opacity-70')} />
       <div className="flex items-start gap-2">
         <Tip label={isDone ? 'Completed' : 'Mark complete'}>
           <button
@@ -122,7 +124,8 @@ export const TaskCard = memo(function TaskCard({ task, isDone }) {
         if (e.key === 'Enter') select(task.id);
         else listeners?.onKeyDown?.(e);
       }}
-      className={cx('anim-card cursor-pointer rounded-[var(--radius)] outline-none focus-visible:ring-2 focus-visible:ring-accent', isDragging && 'opacity-35')}
+      title="Click to open · drag to move"
+      className={cx('anim-card cursor-grab rounded-[var(--radius)] outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing', isDragging && 'opacity-35')}
     >
       <CardBody task={task} isDone={isDone} />
     </div>

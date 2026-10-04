@@ -3,7 +3,7 @@ import { Archive, Check, Eye, EyeOff, Paintbrush, Plus, Search, X } from 'lucide
 import { dueInfo } from '../../../shared/due.js';
 import { useBoard } from '../store';
 import { THEMES } from '../themes';
-import { Button, ColorDot, cx, IconButton, Kbd, Popover, PopoverContent, PopoverTrigger, Tip } from './ui';
+import { Button, ColorDot, cx, IconButton, Popover, PopoverContent, PopoverTrigger, Tip } from './ui';
 
 export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
   const query = useBoard((s) => s.query);
@@ -45,22 +45,27 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
       </div>
 
       <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
-        <label className="group relative flex h-8 w-full max-w-[260px] items-center rounded-lg border border-line bg-card/70 pl-8 pr-2 transition-colors focus-within:border-accent">
-          <Search className="absolute left-2.5 size-3.5 text-faint" />
+        {/* icon-only until used: click or press / to expand; searches every field of every task */}
+        <label
+          title="Search everything (/)"
+          className={cx(
+            'relative flex h-8 cursor-text items-center rounded-lg border transition-[width,background-color,border-color] duration-200 ease-out',
+            query ? 'w-64 border-line bg-card/70' : 'w-8 border-transparent hover:bg-hover focus-within:w-64 focus-within:border-line focus-within:bg-card/70'
+          )}
+        >
+          <Search className="pointer-events-none absolute left-2 size-4 text-muted" />
           <input
             ref={searchRef}
             value={query}
+            aria-label="Search all tasks"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && (setQuery(''), e.currentTarget.blur())}
-            placeholder="Search tasks"
-            className="h-full w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
+            className="h-full w-full min-w-0 bg-transparent pl-8 pr-7 text-[13px] outline-none"
           />
-          {query ? (
-            <button type="button" aria-label="Clear search" onClick={() => setQuery('')} className="text-faint hover:text-fg">
+          {query && (
+            <button type="button" aria-label="Clear search" onClick={() => setQuery('')} className="absolute right-2 text-faint hover:text-fg">
               <X className="size-3.5" />
             </button>
-          ) : (
-            <Kbd>/</Kbd>
           )}
         </label>
 

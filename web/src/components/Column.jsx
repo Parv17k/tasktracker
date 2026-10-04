@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, EyeOff, MoreHorizontal, Palette, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, EyeOff, MoreHorizontal, Palette, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useBoard } from '../store';
 import { COLUMN_COLORS } from '../themes';
 import { parseQuickAdd } from '../dates';
@@ -15,9 +15,16 @@ export function Column({ column, taskIds, tasksById, totalCount, filtered, isFir
   const [renaming, setRenaming] = useState(false);
   const quickAddOpen = useBoard((s) => s.quickAddColumn === column.id);
   const setQuickAdd = useBoard((s) => s.setQuickAdd);
+  const dragging = useBoard((s) => s.dragging);
+  const empty = taskIds.length === 0;
 
   return (
-    <section className="flex max-h-full w-[300px] shrink-0 flex-col rounded-[calc(var(--radius)+6px)] bg-surface/70 ring-1 ring-line/60">
+    <section
+      className={cx(
+        'flex max-h-full w-[300px] shrink-0 flex-col rounded-[calc(var(--radius)+6px)] bg-surface/70 ring-1 transition-shadow',
+        dragging && isOver ? 'ring-2 ring-accent/50' : 'ring-line/60'
+      )}
+    >
       <header className="group/col flex items-center gap-2 px-3 pb-2 pt-3">
         <ColorDot color={column.color} />
         {renaming ? (
@@ -29,38 +36,39 @@ export function Column({ column, taskIds, tasksById, totalCount, filtered, isFir
         )}
         <span className="rounded-full bg-hover px-1.5 text-[11px] font-medium tabular-nums text-muted">{filtered ? `${taskIds.length}/${totalCount}` : totalCount}</span>
         {column.isDone && <CheckCircle2 className="size-3.5 text-ok" aria-label="Done column" />}
-        <div className="ml-auto flex items-center opacity-60 transition-opacity group-hover/col:opacity-100">
+        <div className="ml-auto flex items-center">
           <IconButton size="sm" label="Add task" onClick={() => setQuickAdd(column.id)}>
             <Plus className="size-4" />
           </IconButton>
-          <ColumnMenu column={column} isFirst={isFirst} isLast={isLast} onRename={() => setRenaming(true)} onRemove={onRemove} />
+          <div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover/col:opacity-100 has-[[data-state=open]]:opacity-100">
+            <ColumnMenu column={column} isFirst={isFirst} isLast={isLast} onRename={() => setRenaming(true)} onRemove={onRemove} />
+          </div>
         </div>
       </header>
 
-      <div ref={setNodeRef} className={cx('flex min-h-[64px] flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2 transition-colors', isOver && 'rounded-lg bg-accent-soft/40')}>
+      {quickAddOpen && (
+        <div className="px-2 pb-2">
+          <QuickAdd column={column} onClose={() => setQuickAdd(null)} />
+        </div>
+      )}
+
+      <div ref={setNodeRef} className={cx('flex min-h-6 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2 transition-colors', isOver && !empty && 'rounded-lg bg-accent-soft/40')}>
         <SortableContext id={`col-${column.id}`} items={taskIds} strategy={verticalListSortingStrategy}>
           {taskIds.map((id) => (
             <TaskCard key={id} task={tasksById.get(id)} isDone={column.isDone} />
           ))}
         </SortableContext>
-        {taskIds.length === 0 && !quickAddOpen && (
-          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-line px-3 py-6 text-center text-[12px] text-faint">
-            {filtered && totalCount ? 'No matches here' : 'Drop tasks here'}
-          </div>
-        )}
-      </div>
-
-      <div className="px-2 pb-2">
-        {quickAddOpen ? (
-          <QuickAdd column={column} onClose={() => setQuickAdd(null)} />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setQuickAdd(column.id)}
-            className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] text-faint transition-colors hover:bg-hover hover:text-fg"
+        {/* empty columns: a quiet, text-free drop slot that wakes up while dragging */}
+        {empty && !quickAddOpen && (
+          <div
+            aria-hidden
+            className={cx(
+              'flex h-16 items-center justify-center rounded-[var(--radius)] border-2 border-dashed transition-colors duration-150',
+              isOver ? 'border-accent bg-accent-soft/50 text-accent' : dragging ? 'border-line-strong text-muted' : 'border-line/70 text-faint/70'
+            )}
           >
-            <Plus className="size-4" /> Add task
-          </button>
+            <ArrowDownToLine className="size-4" />
+          </div>
         )}
       </div>
     </section>
@@ -159,7 +167,7 @@ function QuickAdd({ column, onClose }) {
 
   const submit = () => {
     if (!parsed.title) return;
-    createTask({ title: parsed.title, columnId: column.id, dueAt: parsed.dueAt ?? undefined, priority: parsed.priority ?? undefined });
+    createTask({ title: parsed.title, columnId: column.id, dueAt: parsed.dueAt ?? undefined, priority: parsed.priority ?? undefined, placement: 'top' });
     setValue('');
   };
 
