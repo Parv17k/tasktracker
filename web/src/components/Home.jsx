@@ -14,7 +14,9 @@ import {
   ChevronDown,
   CircleDot,
   Flag,
+  GanttChart,
   GripHorizontal,
+  LayoutGrid,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -30,6 +32,7 @@ import { InstallButton, RemindersButton } from './Reminders';
 import { ChatButton } from './Chat';
 import { ManageTagsDialog, TagChip, TagEditor, TagList, useTagColor } from './Tags';
 import { PRIORITY, PriorityIcon } from './TaskCard';
+import { HomeTimeline } from './TimelineViews';
 import { Button, cx, Dialog, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger, Tip } from './ui';
 
 const ICONS = ['📋', '✅', '🚀', '💼', '🏠', '🎯', '💡', '📚', '🛠️', '🎨', '💰', '🌱', '✈️', '🏋️', '🧪', '📈', '🛒', '❤️', '🎓', '🧘', '📝', '🔒', '🌍', '🎵'];
@@ -61,6 +64,7 @@ export default function Home() {
   const [showArchived, setShowArchived] = useState(false);
   const [manageTags, setManageTags] = useState(false);
   const homeTagFilter = useBoard((s) => s.homeTagFilter);
+  const homeView = useBoard((s) => s.homeView);
   const tagColor = useTagColor();
 
   const active = useMemo(() => projects.filter((p) => !p.archived), [projects]);
@@ -178,6 +182,23 @@ export default function Home() {
             title="Projects"
             hint={loaded ? (homeTagFilter.length ? `${shownProjects.length} of ${plural(active.length, 'active project')}` : plural(active.length, 'active project')) : ''}
           >
+            <div className="inline-flex h-7 items-center self-center rounded-lg border border-line bg-card/70 p-0.5 text-[12px]" role="radiogroup" aria-label="Show projects as">
+              {[
+                ['cards', 'Cards', LayoutGrid],
+                ['timeline', 'Timeline', GanttChart],
+              ].map(([key, label, Icon]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={homeView === key}
+                  onClick={() => useBoard.getState().setHomeView(key)}
+                  className={cx('inline-flex h-full items-center gap-1.5 rounded-md px-2 transition-colors', homeView === key ? 'bg-accent-soft font-medium text-fg' : 'text-muted hover:text-fg')}
+                >
+                  <Icon className="size-3.5" /> {label}
+                </button>
+              ))}
+            </div>
             {projectTags.length > 0 && (
               <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5" aria-label="Filter projects by tag">
                 {projectTags.map((name) => (
@@ -195,7 +216,10 @@ export default function Home() {
             )}
           </SectionTitle>
           <ManageTagsDialog open={manageTags} onClose={() => setManageTags(false)} />
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => (draggedAt.current = Date.now())} onDragEnd={onDragEnd}>
+          {homeView === 'timeline' && loaded ? (
+            <HomeTimeline projectIds={shownProjects.map((p) => p.id)} />
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => (draggedAt.current = Date.now())} onDragEnd={onDragEnd}>
             <SortableContext items={shownProjects.map((p) => p.id)} strategy={rectSortingStrategy}>
               <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(330px,1fr))]">
                 {!loaded && [0, 1, 2].map((i) => <div key={i} className="h-[270px] animate-pulse rounded-2xl bg-card/60" />)}
@@ -214,7 +238,8 @@ export default function Home() {
                 {loaded && <NewProjectCard onClick={() => setNewOpen(true)} />}
               </div>
             </SortableContext>
-          </DndContext>
+            </DndContext>
+          )}
         </section>
 
         {archived.length > 0 && (

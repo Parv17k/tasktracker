@@ -119,3 +119,21 @@ test('tags: propose and apply tag changes on tasks and projects', () => {
   assert.equal(store.getProject(pid).priority, 'high');
   assert.equal(store.listProjects().find((p) => p.name === 'Big bet').priority, 'urgent');
 });
+
+test('start dates can be proposed and are checked against the deadline', () => {
+  const t = store.createTask({ projectId: pid, title: 'Plan it', dueAt: '2030-03-10' });
+  const items = actions.preview([
+    { type: 'update_task', task: t.id, start: '2030-03-04' },
+    { type: 'update_task', task: t.id, start: '2030-03-12' },
+    { type: 'create_task', project: pid, title: 'Spanned', start: '2030-03-01', due: '2030-03-05' },
+    { type: 'update_task', task: t.id, start: 'whenever' },
+  ]);
+  assert.equal(items[0].ok, true);
+  assert.match(items[0].summary, /starts /);
+  assert.equal(items[1].ok, false);
+  assert.match(items[1].summary, /can’t be after the deadline/);
+  assert.equal(items[2].ok, true);
+  assert.match(items[3].summary, /isn’t a start date/);
+  actions.apply([{ type: 'update_task', task: t.id, start: '2030-03-04' }]);
+  assert.equal(store.getTask(t.id).startAt, '2030-03-04');
+});

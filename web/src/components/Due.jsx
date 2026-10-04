@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CalendarClock, Clock, X } from 'lucide-react';
 import { dueInfo } from '../../../shared/due.js';
-import { DUE_PRESETS, dueToInputs, inputsToDue } from '../dates';
+import { DUE_PRESETS, dueToInputs, inputsToDue, toDateStr } from '../dates';
 import { cx, useNow } from './ui';
 
 export const toneClass = {
@@ -99,6 +99,41 @@ export function DuePicker({ dueAt, hasTime, onChange }) {
         )}
       </div>
       {info && <div className={cx('inline-flex rounded-md px-2 py-1 text-[12px] font-medium', toneClass[info.tone])}>{info.label}</div>}
+    </div>
+  );
+}
+
+/** The local day ('YYYY-MM-DD') of a deadline, whether it's a whole day or has a time. */
+export function dueDay(dueAt) {
+  if (!dueAt) return null;
+  return dueAt.length === 10 ? dueAt : toDateStr(new Date(dueAt));
+}
+
+/** Optional start date: turns the task into a span on the timeline. Can't be after the deadline. */
+export function StartPicker({ startAt, dueAt, onChange }) {
+  const max = dueDay(dueAt) || undefined;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input
+        type="date"
+        aria-label="Start date"
+        value={startAt || ''}
+        max={max}
+        onChange={(e) => onChange(e.target.value || null)}
+        className="h-8 rounded-lg border border-line bg-bg/60 px-2 text-[13px] outline-none focus:border-accent"
+      />
+      {!startAt && (
+        <button type="button" onClick={() => onChange(max && toDateStr(new Date()) > max ? max : toDateStr(new Date()))} className="inline-flex h-8 items-center rounded-lg px-2 text-[12px] text-muted hover:bg-hover hover:text-fg">
+          Today
+        </button>
+      )}
+      {startAt ? (
+        <button type="button" onClick={() => onChange(null)} className="ml-auto h-8 rounded-lg px-2 text-[12px] text-faint hover:bg-hover hover:text-danger">
+          Clear
+        </button>
+      ) : (
+        <span className="text-[11.5px] text-faint">Optional · shows the task as a span on the timeline</span>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { TopBar } from './components/TopBar';
 import { TaskSheet } from './components/TaskSheet';
 import { ArchiveSheet } from './components/ArchiveSheet';
 import { ChatSheet } from './components/Chat';
+import { BoardTimeline } from './components/TimelineViews';
 import { TipProvider } from './components/ui';
 import Home from './components/Home';
 import { useProjectRoute } from './router';
@@ -18,6 +19,7 @@ export default function App() {
   const loaded = useBoard((s) => s.loaded);
   const theme = useBoard((s) => s.theme);
   const project = useBoard((s) => s.project);
+  const view = useBoard((s) => s.view);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const searchRef = useRef(null);
   const routeProjectId = useProjectRoute();
@@ -67,6 +69,7 @@ export default function App() {
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
         const col = s.columns.find((c) => !c.hidden && !c.isDone) || s.columns.find((c) => !c.hidden);
+        if (s.view !== 'board') s.setView('board');
         if (col) s.setQuickAdd(col.id);
       } else if (e.key === '/') {
         e.preventDefault();
@@ -87,7 +90,7 @@ export default function App() {
         <>
           <div className="flex h-full flex-col">
             <TopBar ref={searchRef} onOpenArchive={() => setArchiveOpen(true)} />
-            <main className="min-h-0 flex-1">{loaded ? <Board /> : <BoardSkeleton />}</main>
+            <main className="min-h-0 flex-1">{!loaded ? <BoardSkeleton /> : view === 'timeline' ? <BoardTimeline /> : <Board />}</main>
           </div>
           <TaskSheet />
           <ArchiveSheet open={archiveOpen} onOpenChange={setArchiveOpen} />

@@ -187,6 +187,13 @@ function migrate() {
       db.exec('PRAGMA user_version = 4');
     });
   }
+  if (user_version < 5) {
+    // v5: optional start date (a whole day), so tasks can show as spans on the timeline
+    tx(() => {
+      db.exec(`ALTER TABLE tasks ADD COLUMN start_at TEXT;`);
+      db.exec('PRAGMA user_version = 5');
+    });
+  }
 }
 
 const DEFAULT_COLUMNS = [
@@ -253,6 +260,7 @@ function mapTask(r, subtasks = [], tags = []) {
       description: r.description,
       note: r.note,
       priority: r.priority,
+      startAt: r.start_at ?? null,
       dueAt: r.due_at,
       dueHasTime: !!r.due_has_time,
       timeSpent: r.time_spent,
@@ -306,6 +314,53 @@ export function parseDue(v) {
   const t = Date.parse(s);
   if (Number.isNaN(t)) throw new AppError(400, `Invalid due date: ${s} (use YYYY-MM-DD or an ISO datetime)`);
   return [new Date(t).toISOString(), 1];
+}
+
+/** Start dates are whole days: 'YYYY-MM-DD' (a datetime is cut to its date). '' or null clears it. */
+export function parseStart(v) {
+  if (v == null || v === '') return null;
+  const s = String(v).trim();
+  const day = /^\d{4}-\d{2}-\d{2}/.exec(s)?.[0];
+  if (!day || Number.isNaN(Date.parse(day))) throw new AppError(400, `Invalid start date: ${s} (use YYYY-MM-DD)`);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? day : localDate(new Date(s));
+}
+
+/** The deadline's day in local time ('YYYY-MM-DD'). */
+const dueDay = (due) => (due == null ? null : /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : localDate(new Date(due)));
+
+function checkSpan(start, due) {
+  if (start && due && start > dueDay(due)) throw new AppError(400, 'The start date can’t be after the deadline');
+}
+
+/**
+ * Everything the home-page timeline needs: active projects with their visible columns,
+ * tasks that have a deadline (finished ones from the last 60 days), and how many open
+ * tasks have no deadline.
+ */
+export function timeline() {
+  const projects = q('SELECT * FROM projects WHERE archived = 0 ORDER BY position').all().map(mapProject);
+  const projectTags = tagsFor('project_tags', 'project_id', projects.map((p) => p.id));
+  const columns = listColumns().filter((c) => !c.hidden);
+  const since = new Date(Date.now() - 60 * 86400000).toISOString();
+  const rows = q(
+    `SELECT t.* FROM tasks t JOIN columns c ON c.id = t.column_id
+     WHERE t.archived = 0 AND c.hidden = 0 AND t.due_at IS NOT NULL AND (c.is_done = 0 OR t.completed_at IS NULL OR t.completed_at >= ?)
+     ORDER BY t.due_at`
+  ).all(since);
+  const undated = q(
+    `SELECT c.project_id AS pid, COUNT(*) AS n FROM tasks t JOIN columns c ON c.id = t.column_id
+     WHERE t.archived = 0 AND c.hidden = 0 AND c.is_done = 0 AND t.due_at IS NULL GROUP BY c.project_id`
+  ).all();
+  const tasks = withSubtasks(rows);
+  return {
+    projects: projects.map((p) => ({
+      ...p,
+      tags: projectTags.get(p.id) || [],
+      columns: columns.filter((c) => c.projectId === p.id),
+      undated: undated.find((u) => u.pid === p.id)?.n ?? 0,
+    })),
+    tasks,
+  };
 }
 
 // ---------- columns ----------
@@ -480,23 +535,26 @@ function defaultColumnId(projectId = defaultProjectId()) {
   return c.id;
 }
 
-export function createTask({ title, description, note, projectId, columnId, priority = 'none', dueAt, subtasks = [], tags = [], placement = 'bottom' } = {}) {
+export function createTask({ title, description, note, projectId, columnId, priority = 'none', startAt, dueAt, subtasks = [], tags = [], placement = 'bottom' } = {}) {
   return tx(() => {
     const colId = columnId != null ? getColumn(columnId).id : defaultColumnId(projectId != null ? getProject(projectId).id : defaultProjectId());
     if (!PRIORITIES.includes(priority)) throw new AppError(400, `priority must be one of ${PRIORITIES.join(', ')}`);
     const [due, dueHasTime] = parseDue(dueAt);
+    const start = parseStart(startAt);
+    checkSpan(start, due);
     const edge =
       placement === 'top'
         ? q('SELECT COALESCE(MIN(position), 1024) - 1024 AS p FROM tasks WHERE column_id = ? AND archived = 0').get(colId).p
         : q('SELECT COALESCE(MAX(position), 0) + 1024 AS p FROM tasks WHERE column_id = ? AND archived = 0').get(colId).p;
     const isDone = getColumn(colId).isDone;
     const id = Number(
-      q('INSERT INTO tasks (column_id, title, description, note, priority, due_at, due_has_time, position, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+      q('INSERT INTO tasks (column_id, title, description, note, priority, start_at, due_at, due_has_time, position, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
         colId,
         cleanText(title, 'title', { max: 500, required: true }),
         cleanText(description, 'description'),
         cleanText(note, 'note'),
         priority,
+        start,
         due,
         dueHasTime,
         edge,
@@ -524,6 +582,10 @@ export function updateTask(id, patch = {}) {
     if (patch.dueAt !== undefined) {
       const [due, hasTime] = parseDue(patch.dueAt);
       sets.push('due_at = ?', 'due_has_time = ?'), vals.push(due, hasTime);
+    }
+    if (patch.startAt !== undefined) sets.push('start_at = ?'), vals.push(parseStart(patch.startAt));
+    if (patch.startAt !== undefined || patch.dueAt !== undefined) {
+      checkSpan(patch.startAt !== undefined ? parseStart(patch.startAt) : task.startAt, patch.dueAt !== undefined ? parseDue(patch.dueAt)[0] : task.dueAt);
     }
     if (patch.timeSpent !== undefined) sets.push('time_spent = ?'), vals.push(Math.max(0, Math.round(Number(patch.timeSpent) || 0)));
     if (patch.archived !== undefined) {

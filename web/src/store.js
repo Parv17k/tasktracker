@@ -43,6 +43,9 @@ export const useBoard = create((set, get) => {
     tags: [],
     tagFilter: [],
     homeTagFilter: [],
+    // how a project is shown ('board' | 'timeline') and how the home page lists projects ('cards' | 'timeline')
+    view: localStorage.getItem('tt-view') === 'timeline' ? 'timeline' : 'board',
+    homeView: localStorage.getItem('tt-home-view') === 'timeline' ? 'timeline' : 'cards',
     selectedId: null,
     dragging: false,
     quickAddColumn: null,
@@ -139,6 +142,14 @@ export const useBoard = create((set, get) => {
     },
     setQuery: (query) => set({ query }),
     setDueFilter: (dueFilter) => set({ dueFilter }),
+    setView(view) {
+      localStorage.setItem('tt-view', view);
+      set({ view });
+    },
+    setHomeView(homeView) {
+      localStorage.setItem('tt-home-view', homeView);
+      set({ homeView });
+    },
     /** Add or remove a tag from the board filter (or the home page's, with `home`). */
     toggleTagFilter(name, home = false) {
       const key = home ? 'homeTagFilter' : 'tagFilter';

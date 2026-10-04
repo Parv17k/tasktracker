@@ -28,6 +28,7 @@ function taskLine(t, { done, detail, now }) {
   if (t.priority !== 'none') parts.push(`${t.priority} priority`);
   if (t.tags?.length) parts.push(t.tags.map((g) => `#${g}`).join(' '));
   const due = !done && dueInfo(t.dueAt, t.dueHasTime, now);
+  if (!done && t.startAt) parts.push(`starts ${t.startAt}`);
   if (due) parts.push(`${due.label} (${localDue(t)})`);
   if (done && t.completedAt) parts.push(`completed ${localDay(new Date(t.completedAt))}`);
   if (t.subtasks.length) parts.push(`subtasks ${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length}`);
@@ -104,8 +105,8 @@ Only propose changes when the user asks for them or clearly agrees to a suggesti
 \`\`\`
 
 The block is a JSON array (at most ${MAX_ACTIONS} items) using these types:
-- {"type":"create_task","project":"<name>","column":"<name, optional>","title":"...","description":"...","priority":"low|medium|high|urgent","due":"YYYY-MM-DD or YYYY-MM-DDTHH:MM","subtasks":["..."],"tags":["..."]}
-- {"type":"update_task","task":<id>, then any of "title", "description", "priority", "due" (use "" to remove the deadline), "add_tags":["..."], "remove_tags":["..."]}
+- {"type":"create_task","project":"<name>","column":"<name, optional>","title":"...","description":"...","priority":"low|medium|high|urgent","start":"YYYY-MM-DD","due":"YYYY-MM-DD or YYYY-MM-DDTHH:MM","subtasks":["..."],"tags":["..."]}
+- {"type":"update_task","task":<id>, then any of "title", "description", "priority", "start", "due" (use "" to remove either), "add_tags":["..."], "remove_tags":["..."]}
 - {"type":"move_task","task":<id>,"column":"<column name in that task's project>"}
 - {"type":"complete_task","task":<id>}
 - {"type":"archive_task","task":<id>}

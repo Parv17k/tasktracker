@@ -1,5 +1,5 @@
 import { forwardRef, useMemo, useState } from 'react';
-import { Archive, Check, ChevronDown, Eye, EyeOff, LayoutGrid, Paintbrush, Plus, Search, X } from 'lucide-react';
+import { Archive, Check, ChevronDown, Eye, EyeOff, GanttChart, LayoutGrid, Paintbrush, Plus, Search, SquareKanban, X } from 'lucide-react';
 import { dueInfo } from '../../../shared/due.js';
 import { useBoard } from '../store';
 import { THEMES } from '../themes';
@@ -16,6 +16,7 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
   const columns = useBoard((s) => s.columns);
   const tasks = useBoard((s) => s.tasks);
   const tagFilter = useBoard((s) => s.tagFilter);
+  const view = useBoard((s) => s.view);
   const [manageTags, setManageTags] = useState(false);
 
   // tags used on this board, most used first
@@ -62,6 +63,24 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
       </div>
 
       <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+        <div className="inline-flex h-8 items-center rounded-lg border border-line bg-card/70 p-0.5 text-[12px]" role="radiogroup" aria-label="View">
+          {[
+            ['board', 'Board', SquareKanban],
+            ['timeline', 'Timeline', GanttChart],
+          ].map(([key, label, Icon]) => (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={view === key}
+              onClick={() => useBoard.getState().setView(key)}
+              className={cx('inline-flex h-full items-center gap-1.5 rounded-md px-2.5 transition-colors', view === key ? 'bg-accent-soft font-medium text-fg' : 'text-muted hover:text-fg')}
+            >
+              <Icon className="size-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+
         {/* icon-only until used: click or press / to expand; searches every field of every task */}
         <label
           title="Search everything (/)"
@@ -113,7 +132,7 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
         />
         <ManageTagsDialog open={manageTags} onClose={() => setManageTags(false)} />
 
-        <HiddenColumns />
+        {view === 'board' && <HiddenColumns />}
 
         <Tip label="Archived tasks">
           <Button variant="ghost" onClick={onOpenArchive} aria-label="Archived tasks">
@@ -126,7 +145,13 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
         <ThemePicker />
         <InstallButton />
 
-        <Button variant="primary" onClick={() => firstColumn && setQuickAdd(firstColumn.id)}>
+        <Button
+          variant="primary"
+          onClick={() => {
+            if (view !== 'board') useBoard.getState().setView('board');
+            if (firstColumn) setQuickAdd(firstColumn.id);
+          }}
+        >
           <Plus className="size-4" /> New task <span className="ml-0.5 rounded bg-accent-fg/15 px-1 font-mono text-[10px]">N</span>
         </Button>
       </div>

@@ -83,6 +83,25 @@ function tagChange(current, add, remove) {
   return { next, summary: [added.length && `add ${tagWords(added)}`, removed.length && `remove ${tagWords(removed)}`].filter(Boolean).join(', ') };
 }
 
+/** Start date as 'YYYY-MM-DD', '' to clear, or undefined when not given. */
+function start(v) {
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return '';
+  try {
+    return store.parseStart(String(v));
+  } catch {
+    return fail(`“${v}” isn’t a start date this app understands.`);
+  }
+}
+
+const dayLabel = (d) => new Date(`${d}T12:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+
+function checkSpan(startAt, dueAt) {
+  if (!startAt || !dueAt) return;
+  const due = /^\d{4}-\d{2}-\d{2}$/.test(dueAt) ? dueAt : store.parseStart(new Date(store.parseDue(dueAt)[0]).toISOString());
+  if (startAt > due) fail('The start date can’t be after the deadline.');
+}
+
 function resolveColumnIn(ref, projectId) {
   try {
     return store.resolveColumn(ref, projectId);
@@ -116,13 +135,15 @@ function plan(a) {
       const description = text(a.description, 'description', { max: 20000 });
       const p = priority(a.priority);
       const [dueAt, dueLabel] = due(a.due);
+      const startAt = start(a.start);
+      if (startAt && dueAt) checkSpan(startAt, dueAt);
       const subtasks = Array.isArray(a.subtasks) ? a.subtasks.map((s) => text(s, 'subtask', { required: true, max: 500 })).slice(0, 30) : [];
       const tags = tagNames(a.tags);
-      const extras = [p && p !== 'none' && `${p} priority`, dueLabel, subtasks.length && `${subtasks.length} subtask${subtasks.length === 1 ? '' : 's'}`, tags.length && tagWords(tags)].filter(Boolean);
+      const extras = [p && p !== 'none' && `${p} priority`, startAt && `starts ${dayLabel(startAt)}`, dueLabel, subtasks.length && `${subtasks.length} subtask${subtasks.length === 1 ? '' : 's'}`, tags.length && tagWords(tags)].filter(Boolean);
       return {
         verb: 'Create',
         summary: `“${title}” in ${project.icon} ${project.name} › ${column.name}${extras.length ? ` · ${extras.join(' · ')}` : ''}`,
-        run: () => store.createTask({ projectId: project.id, columnId: column.id, title, description, priority: p, dueAt: dueAt || undefined, subtasks, tags }),
+        run: () => store.createTask({ projectId: project.id, columnId: column.id, title, description, priority: p, startAt: startAt || undefined, dueAt: dueAt || undefined, subtasks, tags }),
       };
     }
 
@@ -147,6 +168,13 @@ function plan(a) {
         const [dueAt, dueLabel] = due(a.due);
         const same = dueAt ? t.dueAt && store.parseDue(dueAt)[0] === t.dueAt : !t.dueAt;
         if (!same) (patch.dueAt = dueAt), changes.push(dueAt ? dueLabel : 'remove deadline');
+      }
+      if (a.start !== undefined) {
+        const s = start(a.start);
+        if ((s || null) !== t.startAt) (patch.startAt = s || ''), changes.push(s ? `starts ${dayLabel(s)}` : 'remove start date');
+      }
+      if (patch.startAt !== undefined || patch.dueAt !== undefined) {
+        checkSpan(patch.startAt !== undefined ? patch.startAt : t.startAt, patch.dueAt !== undefined ? patch.dueAt : t.dueAt);
       }
       if (a.add_tags !== undefined || a.remove_tags !== undefined || a.tags !== undefined) {
         const base = a.tags !== undefined ? tagNames(a.tags) : t.tags;

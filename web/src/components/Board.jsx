@@ -32,7 +32,7 @@ function searchText(task, column) {
 }
 
 /** All words must appear somewhere on the task, in any field and any order. */
-function matches(task, column, query) {
+export function matches(task, column, query) {
   if (!query.trim()) return true;
   const text = searchText(task, column);
   return query
@@ -43,12 +43,12 @@ function matches(task, column, query) {
 }
 
 /** With tags selected, a task shows if it has any of them. */
-function tagMatches(task, selected) {
+export function tagMatches(task, selected) {
   if (!selected.length) return true;
   return (task.tags || []).some((t) => selected.includes(t.toLowerCase()));
 }
 
-function dueMatches(task, filter, isDoneCol) {
+export function dueMatches(task, filter, isDoneCol) {
   if (filter === 'all') return true;
   if (isDoneCol) return false;
   const info = dueInfo(task.dueAt, task.dueHasTime);

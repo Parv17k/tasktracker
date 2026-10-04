@@ -57,6 +57,7 @@ function taskDetail(t) {
     `column: ${columnName(t.columnId)}${t.archived ? ' (archived)' : ''}`,
     `priority: ${t.priority}`,
     `tags: ${t.tags?.length ? t.tags.join(', ') : 'none'}`,
+    `start: ${t.startAt || 'none'}`,
     `due: ${due ? `${t.dueAt} — ${due.label}` : 'none'}`,
     `time spent: ${formatDuration(t.timeSpent + running)}${t.timerStartedAt ? ' (timer running)' : ''}`,
   ];
@@ -87,6 +88,7 @@ const projectRef = z
   .describe('Project name (fuzzy, e.g. "website") or id. Defaults to the first project on the home page.');
 const priority = z.enum(['none', 'low', 'medium', 'high', 'urgent']);
 const due = z.string().describe('Deadline as YYYY-MM-DD (whole day) or an ISO datetime, e.g. 2026-10-05T17:00');
+const start = z.string().describe('Start date as YYYY-MM-DD (shows the task as a span on the timeline); empty string clears it');
 const tagList = z.array(z.string().min(1)).describe('Tag names, e.g. ["design", "q4"]. New tags are created automatically.');
 
 // ---------- tools ----------
@@ -182,9 +184,10 @@ server.registerTool(
       due: due.optional(),
       subtasks: z.array(z.string()).optional().describe('Checklist items to create with the task'),
       tags: tagList.optional(),
+      start: start.optional(),
     },
   },
-  tool(({ title, project, description, note, column, priority, due, subtasks, tags }) => {
+  tool(({ title, project, description, note, column, priority, due, start, subtasks, tags }) => {
     const projectId = store.resolveProject(project).id;
     const t = store.createTask({
       projectId,
@@ -193,6 +196,7 @@ server.registerTool(
       note,
       priority,
       dueAt: due,
+      startAt: start,
       subtasks,
       tags,
       columnId: column != null ? store.resolveColumn(column, projectId).id : undefined,
@@ -214,13 +218,14 @@ server.registerTool(
       note: z.string().optional().describe('Replaces the whole note'),
       priority: priority.optional(),
       due: z.string().optional().describe('YYYY-MM-DD or ISO datetime; empty string clears it'),
+      start: start.optional(),
       tags: tagList.optional().describe('Replaces all tags ([] removes them)'),
       add_tags: tagList.optional(),
       remove_tags: z.array(z.string()).optional(),
     },
   },
-  tool(({ id, due, tags, add_tags, remove_tags, ...rest }) => {
-    const patch = { ...rest, ...(due !== undefined ? { dueAt: due } : {}) };
+  tool(({ id, due, start, tags, add_tags, remove_tags, ...rest }) => {
+    const patch = { ...rest, ...(due !== undefined ? { dueAt: due } : {}), ...(start !== undefined ? { startAt: start } : {}) };
     if (tags !== undefined || add_tags || remove_tags) patch.tags = changeTags(tags ?? store.getTask(id).tags, { add: add_tags, remove: remove_tags });
     return text(`Updated:\n${taskDetail(store.updateTask(id, patch))}`);
   })

@@ -49,7 +49,7 @@ web/src/
   themes.js         ← theme list for the picker
   styles.css        ← theme colours (CSS variables) + global styles
   dates.js          ← date presets & quick-add parser (@fri !high)
-  components/       ← Home, Board, Column, TaskCard, TaskSheet, Tags, Reminders, Chat, TopBar, …
+  components/       ← Home, Board, Timeline, Column, TaskCard, TaskSheet, Tags, Reminders, Chat, TopBar, …
 test/               ← node:test suite
 ```
 
@@ -100,6 +100,8 @@ The [roadmap in the README](README.md#-roadmap) has the bigger picture. These ar
 | Copy button on chat replies | 🟢 Easy |
 | Saved filters (a tag + deadline + search combination) | 🟡 Medium |
 | Sort the home page by project priority | 🟢 Easy |
+| Timeline: a "jump to today" button and remembering scroll position | 🟢 Easy |
+| Timeline: show project start/end milestones you set by hand | 🟡 Medium |
 | Snooze a reminder from the notification | 🟡 Medium |
 | Export / import the board as JSON or Markdown | 🟡 Medium |
 | Recurring tasks (daily, weekly…) | 🟡 Medium |

@@ -38,6 +38,7 @@ export const api = {
   deleteColumn: (id, moveTo) => request('DELETE', `/api/columns/${id}${moveTo ? `?moveTo=${moveTo}` : ''}`),
 
   tags: () => request('GET', '/api/tags'),
+  timeline: () => request('GET', '/api/timeline'),
   updateTag: (id, patch) => request('PATCH', `/api/tags/${id}`, patch),
   deleteTag: (id) => request('DELETE', `/api/tags/${id}`),
 };

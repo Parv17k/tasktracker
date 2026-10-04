@@ -146,6 +146,7 @@ Each project gets its own board. The home page shows them all in a single glance
 - Pick a date with an optional time, or use a preset: *Today*, *Tomorrow*, *In 2 days*, *Next week*
 - Cards read **Due today**, **Due in 3h**, **Due next week** or **Overdue by 2d**, colour-coded and updated live
 - **Due this week** and **Overdue** filters, plus a live count in the header
+- An optional **start date** turns a task into a span on the timeline
 - A start/pause **time-spent timer** on every task
 
 </td>
@@ -171,6 +172,17 @@ Send invoice to Acme @fri !high #finance
 <img src="docs/screenshots/task-detail.png" alt="Task detail panel with deadline, timer and subtasks" width="100%" />
 <br /><sub>Every field autosaves. The deadline, timer, subtasks and note all live in one calm panel.</sub>
 </div>
+
+### 🗓️ Timeline: see your work across time, and drag to reschedule
+
+Switch any board to **Timeline**, or the home page's project list to **Timeline** for every project at once. It's a calm Gantt chart:
+
+- **One row per task**, grouped by column. A bar runs from the start date to the deadline; tasks with only a deadline show as a ◆.
+- **Drag to reschedule**: drag a bar to move it, drag its ends to change the start or deadline, or pull a ◆ out into a bar. Times of day are kept. Arrow keys work too.
+- **Today is always in view**, overdue items are outlined in red with "Overdue 2d", and finished ones fade.
+- **Two zoom levels**, *Weeks* and *Months*; the board's search, tag and deadline filters apply.
+- **Home page**: one row per project with a ◆ at each deadline, so busy weeks stand out. Expand a project to see and reschedule its tasks.
+- Tasks without a deadline stay out of the way in a collapsible list.
 
 ### 📲 Install it, and get reminders
 
@@ -244,8 +256,8 @@ Then just ask:
 | `get_board` | Columns and tasks of one project (`project: "website"`, fuzzy) |
 | `list_tasks` | Search across all projects or one: column, text, `tag`, `due_within_days`, `overdue`, archived |
 | `get_task` | Full details, including subtask ids |
-| `create_task` | Project, column, title, description, note, priority, due date, subtasks, tags |
-| `update_task` | Change any field (`due: ""` clears the deadline), `add_tags` / `remove_tags` |
+| `create_task` | Project, column, title, description, note, priority, start and due dates, subtasks, tags |
+| `update_task` | Change any field (`due: ""` / `start: ""` clear dates), `add_tags` / `remove_tags` |
 | `move_task` | Move by column name (fuzzy: `"in prog"` works) or id |
 | `complete_task` | Move to the done column, optionally appending a summary |
 | `archive_task` | Archive, or restore with `archived: false` |
@@ -445,6 +457,7 @@ The AI chat provider is configured in the app (✨ → settings) and stored in t
 | `GET` | `/api/chat/models` | Models offered by the provider (also a connection test) |
 | `POST` | `/api/chat` | `{ messages, projectId }`, streams the reply as plain text |
 | `GET` | `/api/tags` | Every tag with its colour and usage counts |
+| `GET` | `/api/timeline` | Active projects with their dated tasks, for the home-page timeline |
 | `PATCH` / `DELETE` | `/api/tags/:id` | Rename or recolour a tag everywhere, or delete it |
 | `GET` | `/api/events` | Server-Sent Events stream (`change`, `reminder`) |
 
@@ -458,6 +471,7 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 - ✨ AI chat with any OpenAI-compatible provider, grounded in your board
 - ✅ The assistant can change your board, with an approval card for every change
 - 🏷️ Tags on tasks and projects, and project priority
+- 🗓️ Timeline (Gantt) view per project and across projects, with drag to reschedule
 - 🗂️ Multiple projects with a home page, drag-to-reorder projects and columns
 - 📲 Installable app with deadline reminders that work while it's closed
 - 🎨 Twenty-four themes
@@ -484,8 +498,8 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 | 🎯 **Goals**: link tasks to longer-term goals and track progress toward them | 📋 Planned |
 | 🔁 **Recurring tasks**: daily, weekly, monthly, or custom | 🙋 Help wanted |
 | 💾 **Saved filters**: keep a tag + deadline + search combination one click away | 🙋 Help wanted |
-| 🗓️ **Calendar and timeline views** of deadlines across projects | 📋 Planned |
-| 🔗 **Task dependencies**: "blocked by #12" | 🧪 Exploring |
+| 🗓️ **Calendar view**: a month grid of deadlines | 🙋 Help wanted |
+| 🔗 **Task dependencies**: "blocked by #12", shown as links on the timeline | 🧪 Exploring |
 | 🍅 **Focus mode**: one task, a Pomodoro timer, everything else hidden | 🙋 Help wanted |
 | 📄 **Task templates** for repeatable checklists | 🙋 Help wanted |
 | 🔀 **Move tasks between projects** | 🙋 Help wanted |

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Archive, Check, ChevronDown, GripVertical, MoreHorizontal, Pause, Play, Plus, Trash2, X } from 'lucide-react';
 import { formatDuration } from '../../../shared/due.js';
 import { useBoard } from '../store';
-import { DuePicker } from './Due';
+import { DuePicker, dueDay, StartPicker } from './Due';
 import { TagEditor } from './Tags';
 import { PRIORITY, PriorityIcon } from './TaskCard';
 import { Button, ColorDot, cx, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Sheet, useNow } from './ui';
@@ -302,7 +302,19 @@ export function TaskSheet() {
               <PriorityPicker task={t} />
             </Row>
             <Row label="Deadline">
-              <DuePicker dueAt={t.dueAt} hasTime={t.dueHasTime} onChange={(dueAt) => updateTask(t.id, { dueAt, dueHasTime: !!dueAt && dueAt.length > 10 })} />
+              <DuePicker
+                dueAt={t.dueAt}
+                hasTime={t.dueHasTime}
+                onChange={(dueAt) => {
+                  // a deadline moved before the start pulls the start along with it
+                  const day = dueDay(dueAt);
+                  const startAt = t.startAt && day && t.startAt > day ? day : undefined;
+                  updateTask(t.id, { dueAt, dueHasTime: !!dueAt && dueAt.length > 10, ...(startAt && { startAt }) });
+                }}
+              />
+            </Row>
+            <Row label="Start">
+              <StartPicker startAt={t.startAt} dueAt={t.dueAt} onChange={(startAt) => updateTask(t.id, { startAt })} />
             </Row>
             <Row label="Time spent">
               <TimeTracker task={t} />

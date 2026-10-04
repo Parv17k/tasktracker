@@ -128,6 +128,7 @@ app.post('/api/chat', async (req, reply) => {
 app.get('/api/home', async () => ({ projects: store.listProjects(), dueSoon: store.dueSoon({ days: 7, limit: 12 }), tags: store.listTags() }));
 
 app.get('/api/tags', async () => store.listTags());
+app.get('/api/timeline', async () => store.timeline());
 app.patch('/api/tags/:id', async (req) => store.updateTag(id(req), req.body));
 app.delete('/api/tags/:id', async (req) => store.deleteTag(id(req)));
 app.get('/api/projects', async () => store.listProjects());
