@@ -31,17 +31,23 @@ npm run dev
 ## 🗺️ Project map
 
 ```
-server/db.js       ← all data & business rules (start here for backend work)
-server/index.js    ← REST API, live updates (SSE), serves the UI
-mcp/index.js       ← MCP server for AI agents (uses server/db.js)
-shared/due.js      ← "Due tomorrow" / "Overdue 2d" labels, shared by UI + MCP
+server/db.js        ← all data & business rules: projects, columns, tasks, settings (start here)
+server/index.js     ← REST API, live updates (SSE), serves the UI
+server/reminders.js ← deadline reminder engine + Web Push delivery
+mcp/index.js        ← MCP server for AI agents (uses server/db.js)
+shared/due.js       ← "Due tomorrow" / "Overdue 2d" labels, shared by UI + MCP
+web/public/
+  sw.js             ← service worker: notifications, installable app shell
+  manifest.webmanifest, icons/
 web/src/
-  store.js         ← Zustand store with optimistic updates
-  themes.js        ← theme list for the picker
-  styles.css       ← theme colours (CSS variables) + global styles
-  dates.js         ← date presets & quick-add parser (@fri !high)
-  components/      ← Board, Column, TaskCard, TaskSheet, TopBar, …
-test/              ← node:test suite
+  store.js          ← Zustand store with optimistic updates
+  router.js         ← "/" home page, "/p/:id" project boards
+  pwa.js            ← install prompt, push subscription, notification clicks
+  themes.js         ← theme list for the picker
+  styles.css        ← theme colours (CSS variables) + global styles
+  dates.js          ← date presets & quick-add parser (@fri !high)
+  components/       ← Home, Board, Column, TaskCard, TaskSheet, Reminders, TopBar, …
+test/               ← node:test suite
 ```
 
 **Golden rule:** business logic belongs in `server/db.js`, so the web UI and the MCP server always behave the same way. If you add a capability, consider exposing it in **both** the REST API and the MCP server.
@@ -50,8 +56,8 @@ test/              ← node:test suite
 
 1. In `web/src/styles.css`, copy an existing `[data-theme='…']` block and give it a new id. Every colour, font and shadow is a CSS variable.
 2. Add an entry to `web/src/themes.js` with a name, tagline and four swatch colours.
-3. If it's a dark theme, add its id to the `dark` list in `web/src/App.jsx`.
-4. Check that text is readable (aim for WCAG AA contrast), and that due-date chips, priority icons and the note pad all look good.
+3. If it's a dark theme, add its id to the `dark` list in `web/src/App.jsx`, and to the `--bar-l: 0.65` block in `styles.css` so the home-page status bars stay readable.
+4. Check that text is readable (aim for WCAG AA contrast), and that due-date chips, priority icons, the note pad and the home page's status bars all look good.
 5. Include a screenshot in your PR!
 
 ## ✅ Before you open a pull request
@@ -86,13 +92,13 @@ Fix overdue count ignoring tasks with a due time
 | Drag to reorder subtasks in the task panel | 🟢 Easy |
 | Keyboard shortcuts help dialog (<kbd>?</kbd>) | 🟢 Easy |
 | Labels / tags on tasks, with filtering | 🟡 Medium |
-| Drag to reorder columns | 🟡 Medium |
+| Snooze a reminder from the notification | 🟡 Medium |
 | Export / import the board as JSON or Markdown | 🟡 Medium |
 | Recurring tasks (daily, weekly…) | 🟡 Medium |
 | Command palette (<kbd>⌘K</kbd>) | 🟡 Medium |
 | Streamable-HTTP transport for the MCP server | 🟠 Advanced |
-| Multiple boards | 🟠 Advanced |
-| Desktop notifications for upcoming deadlines | 🟠 Advanced |
+| Move tasks between projects | 🟠 Advanced |
+| HTTPS on the local network, so phones can install the app | 🟠 Advanced |
 
 Want to take one? Comment on (or open) an issue so nobody duplicates work, and feel free to ask questions there.
 
@@ -100,9 +106,9 @@ Want to take one? Comment on (or open) an issue so nobody duplicates work, and f
 
 Stuck? Unsure if an idea fits? [Open an issue](https://github.com/Parv17k/tasktracker/issues/new/choose). There are no silly questions. We'd rather help you finish a PR than have you give up on it.
 
-## 📜 Code of Conduct
+## 🤗 Be kind
 
-This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). Be kind, be patient, and assume good intent.
+Be patient, assume good intent, and help newcomers along.
 
 ---
 

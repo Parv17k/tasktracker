@@ -34,6 +34,7 @@ Most task apps are either cloud-hosted and heavy, or plain text and bare. Task T
 - 🧘 **Low cognitive load.** Four columns, one click to open a card, no Save buttons. Everything autosaves.
 - ⚡ **Fast.** One SQLite query loads the whole board in about 1 ms, and the UI updates optimistically, so nothing waits on the network.
 - 🔌 **Built for agents.** A first-class [MCP](https://modelcontextprotocol.io) server lets Claude, Cursor or any MCP client read, create, move and complete your tasks, and you watch it happen live in the browser.
+- 🔔 **Never miss a deadline.** Install it as an app and get system notifications before things are due, even when the window is closed.
 - 🏠 **Local-first.** Everything lives in one SQLite file on your machine. No account, no cloud, no telemetry.
 - 🎨 **Pleasant to look at.** Thirteen focus-friendly themes, from warm Paper to neon Terminal.
 
@@ -68,7 +69,7 @@ Each project gets its own board. The home page shows each one in a single glance
 
 ### 📋 A board that adapts to you
 - Default columns: **Open → In Progress → Follow-up → Done**
-- Add, rename, recolour and reorder columns, and choose which one means "done"
+- Add, rename and recolour columns, **drag them by the header to reorder**, and choose which one means "done"
 - **Removing a column that still has tasks asks first**: move the tasks somewhere else, or hide the column and bring it back later
 - Smooth drag & drop within and across columns
 
@@ -114,6 +115,25 @@ Send invoice to Acme @fri !high
 <img src="docs/screenshots/task-detail.png" alt="Task detail panel with deadline, timer and subtasks" width="100%" />
 <br /><sub>Every field autosaves. The deadline, timer, subtasks and note all live in one calm panel.</sub>
 </div>
+
+### 📲 Install it, and get reminders
+
+Task Tracker is a **Progressive Web App**: click **Install** in the top bar (Chrome, Edge, or Safari's *Add to Dock*) and it gets its own window and Dock/taskbar icon.
+
+Turn on reminders from the 🔔 bell, and Task Tracker sends system notifications for deadlines:
+
+| Reminder | When | Adjustable |
+| --- | --- | --- |
+| The day before | at your morning time (default 9:00) | on/off, time |
+| The morning it's due | at your morning time | on/off |
+| Before a due time | for tasks with a time, e.g. 1 hour before | on/off, 15 min to 1 day |
+| When it becomes overdue | at the due time, or the next morning for all-day tasks | on/off |
+
+- **Works with the app closed**: the local server sends reminders through the browser's push service, signed with keys generated on your machine. No account is needed.
+- **Calm by design**: each reminder fires once, done tasks never remind you, and a burst of reminders (say, after your laptop wakes up) arrives as a single summary.
+- **Click a notification** to jump straight to that task.
+
+> Reminders while the app is closed need the Task Tracker server running. Delivery goes through your browser's push service, so it needs an internet connection. Open windows also receive reminders over the local live-update stream.
 
 ## 🎨 Themes
 
@@ -253,6 +273,29 @@ sequenceDiagram
     Note over UI: Card glides into Done ✨<br/>no refresh needed
 ```
 
+### 🔔 Reminders: from a deadline to your screen
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant REM as ⏰ Reminder engine
+    participant DB as 🗄️ SQLite
+    participant PUSH as ☁️ Browser push service
+    participant SW as 🔔 Service worker
+    actor You
+
+    loop every minute
+        REM->>DB: open tasks with deadlines
+    end
+    REM->>REM: due and not yet sent?
+    REM->>DB: log it (each reminder fires once)
+    REM->>PUSH: Web Push, signed with local VAPID keys
+    PUSH->>SW: deliver, even if the app is closed
+    SW->>You: "Due in 30 min · Send proposal"
+    You->>SW: click
+    SW-->>You: opens that task
+```
+
 - **One data layer** (`server/db.js`) holds every business rule, shared by the API and the MCP server, so humans and agents always behave the same way.
 - **Live sync without polling the API:** the server watches SQLite's `PRAGMA data_version` and pushes changes from other processes to browsers over Server-Sent Events.
 - **WAL mode** lets the web app and an agent write at the same time.
@@ -261,7 +304,8 @@ sequenceDiagram
 | Layer | Tech |
 | --- | --- |
 | Frontend | React 19 · Vite · Tailwind CSS v4 · Radix UI · dnd-kit · Zustand · Sonner |
-| Backend | Node.js · Fastify · `node:sqlite` |
+| Backend | Node.js · Fastify · `node:sqlite` · `web-push` |
+| App | Web App Manifest · Service Worker · Push & Notifications APIs |
 | Agent | `@modelcontextprotocol/sdk` · Zod |
 
 <details>
@@ -294,7 +338,11 @@ sequenceDiagram
 | `POST` | `/api/tasks/:id/subtasks` | Add a subtask |
 | `PATCH` / `DELETE` | `/api/subtasks/:id` | Update or delete a subtask |
 | `POST` / `PATCH` / `DELETE` | `/api/columns[/:id]` | Manage columns (`POST { projectId, … }`, `DELETE ?moveTo=<id>`) |
-| `GET` | `/api/events` | Server-Sent Events stream |
+| `GET` / `PATCH` | `/api/settings/reminders` | Reminder preferences |
+| `GET` | `/api/push/key` | Public VAPID key for subscribing |
+| `POST` | `/api/push/subscribe` · `/unsubscribe` | Register or remove a browser for push |
+| `POST` | `/api/push/test` | Send a test notification |
+| `GET` | `/api/events` | Server-Sent Events stream (`change`, `reminder`) |
 
 </details>
 
@@ -316,7 +364,7 @@ npm run build   # production build of the UI
 
 Not sure where to start? [Open an issue](https://github.com/Parv17k/tasktracker/issues/new/choose) and say hi. 👋
 
-Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) in all interactions.
+Please be kind, be patient, and assume good intent.
 
 ## ⭐ Support
 

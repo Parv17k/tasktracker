@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { api } from './api';
+import { syncThemeColor } from './pwa';
 
 const sortByPos = (a, b) => a.position - b.position;
 const replaceTask = (tasks, task) => tasks.map((t) => (t.id === task.id ? task : t));
@@ -68,7 +69,10 @@ export const useBoard = create((set, get) => {
 
     /** Switch views (called by the router). `id` null = home page. */
     openProject(id) {
-      if (id === get().projectId) return get().load();
+      if (id === get().projectId) {
+        if (get().pendingSelect != null) set({ selectedId: get().pendingSelect, pendingSelect: null });
+        return get().load();
+      }
       set({ projectId: id, project: null, columns: [], tasks: [], loaded: false, query: '', dueFilter: 'all', quickAddColumn: null, selectedId: get().pendingSelect ?? null, pendingSelect: null });
       return get().load();
     },
@@ -113,6 +117,7 @@ export const useBoard = create((set, get) => {
       document.documentElement.dataset.theme = theme;
       localStorage.setItem('tt-theme', theme);
       set({ theme });
+      syncThemeColor();
     },
     setQuery: (query) => set({ query }),
     setDueFilter: (dueFilter) => set({ dueFilter }),

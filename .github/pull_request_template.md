@@ -12,3 +12,4 @@
 - [ ] `npm run build` succeeds
 - [ ] Tested in the browser
 - [ ] New capabilities exposed in both the REST API and the MCP server (if relevant)
+- [ ] Checked in a light and a dark theme (for UI changes)

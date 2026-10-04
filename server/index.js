@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from './db.js';
+import { startReminders } from './reminders.js';
 
 const PORT = Number(process.env.PORT) || 1717;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -24,10 +25,12 @@ app.setErrorHandler((err, req, reply) => {
 const clients = new Set();
 let lastOrigin = null;
 
-function broadcast(origin) {
-  const msg = `event: change\ndata: ${JSON.stringify({ origin })}\n\n`;
+function send(event, data) {
+  const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const res of clients) res.write(msg);
 }
+
+const broadcast = (origin) => send('change', { origin });
 
 // Coalesce bursts of writes into one event per tick. The origin (the tab that
 // made the change) is captured synchronously so that tab can skip a refetch.
@@ -78,6 +81,17 @@ const id = (req) => Number(req.params.id);
 
 app.get('/api/health', async () => ({ ok: true }));
 app.get('/api/board', async () => store.getBoard());
+
+// ---------- reminders & push ----------
+
+const reminders = startReminders({ broadcast: send });
+
+app.get('/api/settings/reminders', async () => store.getReminderSettings());
+app.patch('/api/settings/reminders', async (req) => store.updateReminderSettings(req.body));
+app.get('/api/push/key', async () => ({ publicKey: reminders.publicKey }));
+app.post('/api/push/subscribe', async (req) => store.savePushSubscription(req.body));
+app.post('/api/push/unsubscribe', async (req) => store.deletePushSubscription(req.body?.endpoint));
+app.post('/api/push/test', async () => reminders.test());
 
 app.get('/api/home', async () => ({ projects: store.listProjects(), dueSoon: store.dueSoon({ days: 7, limit: 12 }) }));
 app.get('/api/projects', async () => store.listProjects());

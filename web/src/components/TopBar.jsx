@@ -4,6 +4,7 @@ import { dueInfo } from '../../../shared/due.js';
 import { useBoard } from '../store';
 import { THEMES } from '../themes';
 import { navigate, projectPath } from '../router';
+import { InstallButton, RemindersButton } from './Reminders';
 import { Button, ColorDot, cx, IconButton, Popover, PopoverContent, PopoverTrigger, Tip } from './ui';
 
 export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
@@ -100,7 +101,9 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
           </Button>
         </Tip>
 
+        <RemindersButton />
         <ThemePicker />
+        <InstallButton />
 
         <Button variant="primary" onClick={() => firstColumn && setQuickAdd(firstColumn.id)}>
           <Plus className="size-4" /> New task <span className="ml-0.5 rounded bg-accent-fg/15 px-1 font-mono text-[10px]">N</span>

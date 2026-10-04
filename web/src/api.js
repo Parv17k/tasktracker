@@ -39,8 +39,9 @@ export const api = {
 };
 
 /** Subscribe to server-sent change events. Calls `onChange` for changes made elsewhere. */
-export function subscribe(onChange) {
+export function subscribe(onChange, onReminder) {
   const es = new EventSource('/api/events');
+  if (onReminder) es.addEventListener('reminder', (e) => onReminder(JSON.parse(e.data)));
   es.addEventListener('change', (e) => {
     const { origin } = JSON.parse(e.data || '{}');
     if (origin !== CLIENT_ID) onChange();

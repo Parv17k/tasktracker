@@ -1,0 +1,17 @@
+{
+  "name": "Task Tracker",
+  "short_name": "Tasks",
+  "description": "A calm, local-first Kanban board with deadline reminders.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5efe3",
+  "theme_color": "#0b1220",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [{ "name": "All projects", "url": "/", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }]
+}

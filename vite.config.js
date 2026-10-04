@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   root: 'web',
   plugins: [react(), tailwindcss()],
-  build: { outDir: 'dist', emptyOutDir: true },
+  build: { outDir: 'dist', emptyOutDir: true, chunkSizeWarningLimit: 800 },
   server: {
     port: 5173,
     proxy: { '/api': { target: 'http://127.0.0.1:1717' } },

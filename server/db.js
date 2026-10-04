@@ -135,6 +135,27 @@ function migrate() {
       db.exec('PRAGMA user_version = 2');
     });
   }
+  if (user_version < 3) {
+    // v3: app settings, Web Push subscriptions, and a log so each reminder fires once
+    tx(() => {
+      db.exec(`
+        CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE push_subscriptions (
+          endpoint   TEXT PRIMARY KEY,
+          keys       TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
+        CREATE TABLE reminders_sent (
+          task_id INTEGER NOT NULL,
+          kind    TEXT    NOT NULL,
+          due_at  TEXT    NOT NULL,
+          sent_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+          PRIMARY KEY (task_id, kind, due_at)
+        );
+      `);
+      db.exec('PRAGMA user_version = 3');
+    });
+  }
 }
 
 const DEFAULT_COLUMNS = [
@@ -794,6 +815,95 @@ export function deleteSubtask(id) {
     touch(row.task_id);
     return { deleted: row.id, taskId: row.task_id };
   });
+}
+
+// ---------- settings ----------
+
+export const REMINDER_DEFAULTS = {
+  enabled: true,
+  dayBefore: true,
+  morningOf: true,
+  hourBefore: true,
+  leadMinutes: 60,
+  overdue: true,
+  morningTime: '09:00',
+};
+
+function getSetting(key, fallback) {
+  const r = q('SELECT value FROM settings WHERE key = ?').get(key);
+  return r ? JSON.parse(r.value) : fallback;
+}
+
+function setSetting(key, value) {
+  q('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, JSON.stringify(value));
+}
+
+export function getReminderSettings() {
+  return { ...REMINDER_DEFAULTS, ...getSetting('reminders', {}) };
+}
+
+export function updateReminderSettings(patch = {}) {
+  return tx(() => {
+    const next = { ...getReminderSettings() };
+    for (const k of ['enabled', 'dayBefore', 'morningOf', 'hourBefore', 'overdue']) if (patch[k] !== undefined) next[k] = !!patch[k];
+    if (patch.leadMinutes !== undefined) {
+      const m = Math.round(Number(patch.leadMinutes));
+      if (!(m >= 5 && m <= 24 * 60)) throw new AppError(400, 'leadMinutes must be between 5 and 1440');
+      next.leadMinutes = m;
+    }
+    if (patch.morningTime !== undefined) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(patch.morningTime))) throw new AppError(400, 'morningTime must be HH:MM');
+      next.morningTime = patch.morningTime;
+    }
+    setSetting('reminders', next);
+    return next;
+  });
+}
+
+/** VAPID keys for Web Push, created once per install. */
+export function getVapidKeys(generate) {
+  let keys = getSetting('vapid', null);
+  if (!keys) {
+    keys = generate();
+    tx(() => setSetting('vapid', keys));
+  }
+  return keys;
+}
+
+// ---------- push subscriptions & reminder log ----------
+
+export function savePushSubscription(sub) {
+  if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) throw new AppError(400, 'Invalid push subscription');
+  tx(() =>
+    q('INSERT INTO push_subscriptions (endpoint, keys) VALUES (?, ?) ON CONFLICT(endpoint) DO UPDATE SET keys = excluded.keys').run(
+      String(sub.endpoint),
+      JSON.stringify(sub.keys)
+    )
+  );
+  return { ok: true };
+}
+
+export function deletePushSubscription(endpoint) {
+  tx(() => q('DELETE FROM push_subscriptions WHERE endpoint = ?').run(String(endpoint)));
+  return { ok: true };
+}
+
+export function listPushSubscriptions() {
+  return q('SELECT endpoint, keys FROM push_subscriptions').all().map((r) => ({ endpoint: r.endpoint, keys: JSON.parse(r.keys) }));
+}
+
+/** Open tasks with a deadline in active projects and visible columns — reminder candidates. */
+export function reminderCandidates() {
+  return q(
+    `SELECT t.id, t.title, t.due_at, t.due_has_time, t.created_at, c.name AS column_name, p.id AS project_id, p.name AS project_name, p.icon AS project_icon
+     FROM tasks t JOIN columns c ON c.id = t.column_id JOIN projects p ON p.id = c.project_id
+     WHERE t.archived = 0 AND p.archived = 0 AND c.is_done = 0 AND c.hidden = 0 AND t.due_at IS NOT NULL`
+  ).all();
+}
+
+/** Record a reminder; returns false if it was already sent (so each fires exactly once). */
+export function markReminderSent(taskId, kind, dueAt) {
+  return Number(q('INSERT OR IGNORE INTO reminders_sent (task_id, kind, due_at) VALUES (?, ?, ?)').run(taskId, kind, dueAt).changes) > 0;
 }
 
 /** Changes whenever *another* connection (e.g. the MCP process) commits. */

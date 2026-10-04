@@ -148,3 +148,50 @@ test('cannot archive or delete the last project; delete removes its tasks', () =
   all.slice(1).forEach((x) => store.updateProject(x.id, { archived: true }));
   assert.throws(() => store.updateProject(all[0].id, { archived: true }), /active/);
 });
+
+test('reminder timing: day before, morning of, lead time, overdue', async () => {
+  const { reminderTimes, dueReminders } = await import('../server/reminders.js');
+  const settings = { ...store.REMINDER_DEFAULTS };
+  const dateOnly = { id: 1, due_at: '2030-05-10', due_has_time: 0, created_at: '2030-01-01T00:00:00Z' };
+  const kinds = Object.fromEntries(reminderTimes(dateOnly, settings).map((r) => [r.kind, r.at]));
+  assert.deepEqual(Object.keys(kinds).sort(), ['dayBefore', 'morningOf', 'overdue']);
+  assert.equal(kinds.dayBefore.getDate(), 9);
+  assert.equal(kinds.dayBefore.getHours(), 9);
+  assert.equal(kinds.overdue.getDate(), 11);
+
+  const due = new Date(2030, 4, 10, 15, 0);
+  const timed = { id: 2, due_at: due.toISOString(), due_has_time: 1, created_at: '2030-01-01T00:00:00Z' };
+  const t = Object.fromEntries(reminderTimes(timed, { ...settings, leadMinutes: 30 }).map((r) => [r.kind, r.at]));
+  assert.equal(due - t.hourBefore, 30 * 60000);
+  assert.equal(+t.overdue, +due);
+
+  // fires inside the window, not before it, not long after
+  assert.deepEqual(dueReminders([timed], settings, new Date(2030, 4, 10, 14, 10)).map((r) => r.kind).sort(), ['hourBefore', 'morningOf']);
+  // 8:00 on the day: yesterday's 9:00 reminder is 23h old (past the 12h grace), today's 9:00 hasn't come yet
+  assert.equal(dueReminders([timed], settings, new Date(2030, 4, 10, 8, 0)).length, 0);
+  assert.deepEqual(dueReminders([timed], settings, new Date(2030, 4, 9, 9, 5)).map((r) => r.kind), ['dayBefore']);
+  assert.equal(dueReminders([timed], { ...settings, enabled: false }, new Date(2030, 4, 10, 14, 10)).length, 0);
+  // never for moments before the task existed
+  const late = { ...timed, created_at: new Date(2030, 4, 10, 14, 30).toISOString() };
+  assert.deepEqual(dueReminders([late], settings, new Date(2030, 4, 10, 14, 31)).map((r) => r.kind), []);
+});
+
+test('each reminder is logged once; settings validate', () => {
+  assert.equal(store.markReminderSent(1, 'overdue', '2030-05-10'), true);
+  assert.equal(store.markReminderSent(1, 'overdue', '2030-05-10'), false);
+  assert.equal(store.markReminderSent(1, 'overdue', '2030-05-12'), true, 'a new due date re-arms the reminder');
+  assert.equal(store.updateReminderSettings({ leadMinutes: 15, morningTime: '07:30' }).leadMinutes, 15);
+  assert.throws(() => store.updateReminderSettings({ morningTime: '25:00' }), /HH:MM/);
+  assert.throws(() => store.updateReminderSettings({ leadMinutes: 1 }), /leadMinutes/);
+});
+
+test('reminder text uses the real time left', async () => {
+  const { message } = await import('../server/reminders.js');
+  const now = new Date(2030, 4, 10, 14, 32);
+  const task = { id: 7, title: 'Ship', due_at: new Date(2030, 4, 10, 15, 0).toISOString(), due_has_time: 1, project_id: 2, project_name: 'Web', project_icon: '🎨', column_name: 'Open' };
+  const m = message({ task, kind: 'hourBefore' }, now);
+  assert.equal(m.title, 'Due in 28 min · Ship');
+  assert.equal(m.url, '/p/2?task=7');
+  assert.equal(m.body, '🎨 Web · Open');
+  assert.match(message({ task: { ...task, due_at: '2030-05-10', due_has_time: 0 }, kind: 'overdue' }).title, /^Overdue · Ship/);
+});

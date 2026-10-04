@@ -9,6 +9,7 @@ import { ArchiveSheet } from './components/ArchiveSheet';
 import { TipProvider } from './components/ui';
 import Home from './components/Home';
 import { useProjectRoute } from './router';
+import { showReminderFallback, syncThemeColor } from './pwa';
 
 const isTyping = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
@@ -21,8 +22,13 @@ export default function App() {
   const routeProjectId = useProjectRoute();
   const onHome = routeProjectId == null;
 
-  // the URL decides what is on screen
+  // the URL decides what is on screen; "?task=12" (from a reminder) opens that task
   useEffect(() => {
+    const task = Number(new URLSearchParams(location.search).get('task'));
+    if (task) {
+      useBoard.setState({ pendingSelect: task });
+      history.replaceState(null, '', location.pathname);
+    }
     useBoard.getState().openProject(routeProjectId);
     setArchiveOpen(false);
   }, [routeProjectId]);
@@ -35,10 +41,14 @@ export default function App() {
     const { load } = useBoard.getState();
     let t;
     // debounce bursts of external changes (e.g. an agent doing several edits)
-    return subscribe(() => {
-      clearTimeout(t);
-      t = setTimeout(load, 120);
-    });
+    syncThemeColor();
+    return subscribe(
+      () => {
+        clearTimeout(t);
+        t = setTimeout(load, 120);
+      },
+      (reminder) => showReminderFallback(reminder)
+    );
   }, []);
 
   useEffect(() => {
