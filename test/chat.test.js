@@ -50,6 +50,9 @@ test('board snapshot covers projects, columns, due labels and detail', () => {
   assert.match(text, /\(open on screen\)/);
   assert.match(text, new RegExp(`- #${t.id} Write report · high priority · Due tomorrow \\(2030-01-11\\) · subtasks 0/2`));
   assert.match(text, /Description: Quarterly numbers/);
+  // a timed task late in the evening keeps its local date even when UTC has rolled over
+  const late = store.createTask({ title: 'Evening call', dueAt: new Date(2030, 0, 10, 23, 30).toISOString() });
+  assert.match(chat.boardContext({ now }), new RegExp(`#${late.id} Evening call · .*\\(2030-01-10 23:30\\)`));
   assert.match(text, /### Done \(done column\)/);
   assert.match(chat.systemPrompt(text), /cannot change anything/);
 });

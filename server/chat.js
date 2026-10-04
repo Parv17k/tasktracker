@@ -13,12 +13,17 @@ const clip = (s, n) => {
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
 
+// timestamps are stored in UTC; the model should see the user's local date and time
+const pad = (n) => String(n).padStart(2, '0');
+const localDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const localDue = (t) => (t.dueHasTime ? `${localDay(new Date(t.dueAt))} ${pad(new Date(t.dueAt).getHours())}:${pad(new Date(t.dueAt).getMinutes())}` : t.dueAt);
+
 function taskLine(t, { done, detail, now }) {
   const parts = [`- #${t.id} ${t.title}`];
   if (t.priority !== 'none') parts.push(`${t.priority} priority`);
   const due = !done && dueInfo(t.dueAt, t.dueHasTime, now);
-  if (due) parts.push(`${due.label} (${t.dueAt.slice(0, 10)})`);
-  if (done && t.completedAt) parts.push(`completed ${t.completedAt.slice(0, 10)}`);
+  if (due) parts.push(`${due.label} (${localDue(t)})`);
+  if (done && t.completedAt) parts.push(`completed ${localDay(new Date(t.completedAt))}`);
   if (t.subtasks.length) parts.push(`subtasks ${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length}`);
   if (t.timeSpent || t.timerStartedAt) parts.push(`${formatDuration(t.timeSpent + (t.timerStartedAt ? (now - Date.parse(t.timerStartedAt)) / 1000 : 0))} tracked${t.timerStartedAt ? ' (timer running)' : ''}`);
   let out = parts.join(' · ');

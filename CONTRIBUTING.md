@@ -87,21 +87,30 @@ Fix overdue count ignoring tasks with a due time
 
 ## 💡 Ideas to get you started
 
+The [roadmap in the README](README.md#-roadmap) has the bigger picture. These are good places to start:
+
 | Idea | Difficulty |
 | --- | --- |
 | New themes (Catppuccin, Tokyo Night, Everforest, Nord…) | 🟢 Easy |
 | Drag to reorder subtasks in the task panel | 🟢 Easy |
 | Keyboard shortcuts help dialog (<kbd>?</kbd>) | 🟢 Easy |
+| Clickable `#id` task links in chat replies | 🟢 Easy |
+| Copy button on chat replies | 🟢 Easy |
 | Labels / tags on tasks, with filtering | 🟡 Medium |
 | Snooze a reminder from the notification | 🟡 Medium |
 | Export / import the board as JSON or Markdown | 🟡 Medium |
 | Recurring tasks (daily, weekly…) | 🟡 Medium |
 | Command palette (<kbd>⌘K</kbd>) | 🟡 Medium |
-| Clickable `#id` task links in chat replies | 🟢 Easy |
-| Planning agent: let the chat propose task changes (deadlines, priorities, breakdowns) that you approve with one click | 🟠 Advanced |
+| Natural-language task capture: "renew insurance next Friday, high priority" → a filled-in task | 🟡 Medium |
+| Daily briefing notification: what's due and a suggested plan | 🟡 Medium |
+| Actions in chat: tool calling to move or edit tasks, with a confirm step | 🟠 Advanced |
+| Planning agent: propose deadline, priority and breakdown changes as a diff you approve | 🟠 Advanced |
+| Semantic search with local embeddings | 🟠 Advanced |
 | Streamable-HTTP transport for the MCP server | 🟠 Advanced |
 | Move tasks between projects | 🟠 Advanced |
 | HTTPS on the local network, so phones can install the app | 🟠 Advanced |
+
+**Working on AI features?** Business logic still belongs in `server/db.js`; the chat (`server/chat.js`) and MCP server should call it, never write SQL themselves. Test against a local model (Ollama or LM Studio) so you don't need an API key, and never commit keys or provider URLs.
 
 Want to take one? Comment on (or open) an issue so nobody duplicates work, and feel free to ask questions there.
 
