@@ -178,7 +178,7 @@ function Subtasks({ task }) {
               onClick={() => updateSubtask(task.id, s.id, { done: !s.done })}
               className={cx(
                 'mt-[3px] flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors',
-                s.done ? 'border-ok bg-ok text-white' : 'border-line-strong hover:border-ok'
+                s.done ? 'border-ok bg-ok text-card' : 'border-line-strong hover:border-ok'
               )}
             >
               {s.done && <Check className="size-3" strokeWidth={3.5} />}

@@ -45,7 +45,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [archiveOpen]);
 
-  const dark = ['midnight', 'espresso', 'graphite', 'terminal'].includes(theme);
+  const dark = ['midnight', 'espresso', 'graphite', 'terminal', 'grayscale-dark'].includes(theme);
 
   return (
     <TipProvider>

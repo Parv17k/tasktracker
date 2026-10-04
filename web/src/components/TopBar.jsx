@@ -82,7 +82,7 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
               className={cx('h-full rounded-md px-2.5 transition-colors', dueFilter === key ? 'bg-accent-soft font-medium text-fg' : 'text-muted hover:text-fg')}
             >
               {label}
-              {key === 'overdue' && stats.overdue > 0 && <span className="ml-1 rounded-full bg-danger px-1.5 text-[10px] font-semibold text-white">{stats.overdue}</span>}
+              {key === 'overdue' && stats.overdue > 0 && <span className="ml-1 rounded-full bg-danger px-1.5 text-[10px] font-semibold text-card">{stats.overdue}</span>}
             </button>
           ))}
         </div>

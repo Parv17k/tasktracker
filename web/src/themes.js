@@ -6,6 +6,7 @@ export const THEMES = [
   { id: 'sakura', name: 'Sakura', tagline: 'Soft blush, quiet focus', swatch: ['#faf2f1', '#fffafa', '#3d2b30', '#c0587a'] },
   { id: 'bubblegum', name: 'Bubblegum', tagline: 'Playful pink, soft & rounded', swatch: ['#fff0f6', '#ffffff', '#4a1d38', '#c92f7d'] },
   { id: 'grayscale', name: 'Grayscale', tagline: 'No color, no glare', swatch: ['#e6e6e6', '#f2f2f2', '#262626', '#3a3a3a'] },
+  { id: 'grayscale-dark', name: 'Grayscale Dark', tagline: 'Soft charcoal, zero color', swatch: ['#1b1b1b', '#272727', '#e0e0e0', '#d6d6d6'] },
   { id: 'sage', name: 'Sage Garden', tagline: 'Muted greens, easy on the eyes', swatch: ['#e8ebe1', '#f6f7f1', '#28302a', '#5f7a5a'] },
   { id: 'midnight', name: 'Midnight Ink', tagline: 'Deep navy for late sessions', swatch: ['#0e1320', '#161d2e', '#e4e8f1', '#8db4ff'] },
   { id: 'espresso', name: 'Espresso Library', tagline: 'Dark roast & lamplight', swatch: ['#1c1714', '#27201b', '#ece0cc', '#d7a46b'] },

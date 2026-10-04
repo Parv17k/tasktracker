@@ -387,6 +387,41 @@
   letter-spacing: -0.015em;
 }
 
+/* Grayscale Dark: soft charcoal, off-white text, no hue except a muted red for overdue */
+[data-theme='grayscale-dark'] {
+  color-scheme: dark;
+  --bg: #1b1b1b;
+  --bg-image: none;
+  --surface: #202020;
+  --card: #272727;
+  --text: #e0e0e0;
+  --muted: #a6a6a6;
+  --faint: #6e6e6e;
+  --border: #323232;
+  --border-strong: #454545;
+  --hover: #2e2e2e;
+  --accent: #d6d6d6;
+  --accent-fg: #1b1b1b;
+  --accent-soft: #383838;
+  --danger: #d98a8a;
+  --warn: #c8c8c8;
+  --ok: #c8c8c8;
+  --note: #242424;
+  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 6px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 18px 36px -12px rgba(0, 0, 0, 0.7);
+  --shadow-pop: 0 14px 40px -10px rgba(0, 0, 0, 0.6);
+  --dot-l: 0.68;
+  --dot-c: 0;
+}
+
+[data-theme='grayscale-dark'] .font-display {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
 /* column color dots: hue per name, lightness/chroma per theme */
 [data-color='slate'] { --hue: 255; --dot-c-scale: 0.25; }
 [data-color='blue'] { --hue: 250; }

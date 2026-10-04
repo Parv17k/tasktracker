@@ -19,7 +19,7 @@ export function PriorityIcon({ priority, className }) {
   if (!p?.bars) return null;
   if (priority === 'urgent')
     return (
-      <span className={cx('inline-flex size-3.5 items-center justify-center rounded-[3px] bg-danger text-[10px] font-bold leading-none text-white', className)}>!</span>
+      <span className={cx('inline-flex size-3.5 items-center justify-center rounded-[3px] bg-danger text-[10px] font-bold leading-none text-card', className)}>!</span>
     );
   return (
     <svg viewBox="0 0 14 14" className={cx('size-3.5', p.cls, className)} aria-label={p.label}>
@@ -58,7 +58,7 @@ function CardBody({ task, isDone, overlay }) {
             }}
             className={cx(
               'mt-[1px] flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-              isDone ? 'border-ok bg-ok text-white' : 'border-line-strong text-transparent hover:border-ok hover:text-ok'
+              isDone ? 'border-ok bg-ok text-card' : 'border-line-strong text-transparent hover:border-ok hover:text-ok'
             )}
           >
             <Check className="size-2.5" strokeWidth={3.5} />

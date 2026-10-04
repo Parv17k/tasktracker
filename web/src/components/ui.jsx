@@ -11,7 +11,7 @@ const btnVariants = {
   primary: 'bg-accent text-accent-fg hover:brightness-110 shadow-sm',
   ghost: 'text-muted hover:text-fg hover:bg-hover',
   outline: 'border border-line bg-card text-fg hover:bg-hover',
-  danger: 'bg-danger text-white hover:brightness-110',
+  danger: 'bg-danger text-card hover:brightness-110',
   subtle: 'bg-hover text-fg hover:bg-line',
 };
 const btnSizes = { sm: 'h-7 px-2.5', md: 'h-8 px-3', lg: 'h-10 px-4 text-sm' };
