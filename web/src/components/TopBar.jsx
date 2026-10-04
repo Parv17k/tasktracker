@@ -100,15 +100,15 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
   );
 });
 
+/** Brand mark (see docs/brand), tinted with the active theme's accent. */
 function Logo() {
   return (
-    <div className="flex size-9 items-center justify-center rounded-[10px] bg-accent text-accent-fg shadow-card">
-      <svg viewBox="0 0 20 20" className="size-5" fill="currentColor">
-        <rect x="2.5" y="3" width="4" height="14" rx="1.5" />
-        <rect x="8" y="3" width="4" height="9.5" rx="1.5" opacity=".8" />
-        <rect x="13.5" y="3" width="4" height="6" rx="1.5" opacity=".6" />
-      </svg>
-    </div>
+    <svg viewBox="0 0 64 64" className="size-9 shrink-0 drop-shadow-sm" role="img" aria-label="TaskTracker">
+      <rect width="64" height="64" rx="15" fill="var(--accent)" />
+      <rect x="13" y="15" width="9" height="34" rx="3" fill="var(--accent-fg)" />
+      <rect x="27" y="15" width="9" height="22" rx="3" fill="var(--accent-fg)" fillOpacity=".55" />
+      <path d="M40.5 33.5 L45.5 39 L53 26" fill="none" stroke="var(--accent-fg)" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

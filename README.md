@@ -1,8 +1,11 @@
 <div align="center">
 
-<img src="web/public/favicon.svg" width="72" alt="Task Tracker logo" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-wordmark-dark.svg" />
+  <img src="docs/brand/logo-wordmark-light.svg" height="64" alt="TaskTracker" />
+</picture>
 
-# Task Tracker
+<br />
 
 **A calm, beautiful, local-first Kanban board that your AI agent can use too.**
 
