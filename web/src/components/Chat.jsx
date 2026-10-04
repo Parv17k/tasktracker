@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
-import { ArrowUp, KeyRound, Loader2, RotateCcw, Settings2, Sparkles, Square } from 'lucide-react';
+import { ArrowLeft, ArrowUp, KeyRound, Loader2, RotateCcw, Settings2, Sparkles, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBoard } from '../store';
 import { Button, cx, IconButton, Sheet, Tip } from './ui';
@@ -111,9 +111,15 @@ export function ChatSheet() {
         settings?.configured && (
           <>
             {hasMessages && !setup && <IconButton label="New conversation" onClick={() => useChat.getState().clear()}><RotateCcw className="size-4" /></IconButton>}
-            <IconButton label={editing ? 'Back to chat' : 'Provider settings'} className={cx(editing && 'text-accent')} onClick={() => setEditing((v) => !v)}>
-              <Settings2 className="size-4" />
-            </IconButton>
+            {setup ? (
+              <IconButton label="Back to chat" onClick={() => setEditing(false)}>
+                <ArrowLeft className="size-4" />
+              </IconButton>
+            ) : (
+              <IconButton label="Provider settings" onClick={() => setEditing(true)}>
+                <Settings2 className="size-4" />
+              </IconButton>
+            )}
           </>
         )
       }
@@ -125,10 +131,12 @@ export function ChatSheet() {
       ) : setup ? (
         <ProviderForm
           settings={settings}
+          onChange={setSettings}
           onSaved={(s) => {
             setSettings(s);
             if (s.configured) setEditing(false);
           }}
+          onBack={settings.configured ? () => setEditing(false) : null}
         />
       ) : (
         <Conversation model={settings.model} host={host} />
@@ -246,7 +254,7 @@ function Composer({ streaming }) {
 
 // ---------- provider setup ----------
 
-function ProviderForm({ settings, onSaved }) {
+function ProviderForm({ settings, onChange, onSaved, onBack }) {
   const [baseUrl, setBaseUrl] = useState(settings.baseUrl);
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState(settings.model);
@@ -285,7 +293,14 @@ function ProviderForm({ settings, onSaved }) {
     }
   };
 
-  const removeKey = async () => onSaved(await request('PATCH', '/api/settings/llm', { apiKey: '' }));
+  const removeKey = async () => {
+    try {
+      onChange(await request('PATCH', '/api/settings/llm', { apiKey: '' }));
+      toast.success('Saved key removed');
+    } catch (e) {
+      toast.error(e.message);
+    }
+  };
 
   return (
     <form onSubmit={save} className="space-y-5 p-5">
@@ -342,8 +357,13 @@ function ProviderForm({ settings, onSaved }) {
       </Field>
 
       <div className="flex items-center justify-end gap-2 pt-1">
+        {onBack && (
+          <Button variant="ghost" size="lg" onClick={onBack}>
+            <ArrowLeft className="size-4" /> Back to chat
+          </Button>
+        )}
         <Button type="submit" variant="primary" size="lg" disabled={!baseUrl || !model || busy}>
-          {busy === 'save' && <Loader2 className="size-4 animate-spin" />} Save
+          {busy === 'save' && <Loader2 className="size-4 animate-spin" />} Save & chat
         </Button>
       </div>
 
