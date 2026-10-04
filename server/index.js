@@ -125,7 +125,11 @@ app.post('/api/chat', async (req, reply) => {
   else reply.code(204).send();
 });
 
-app.get('/api/home', async () => ({ projects: store.listProjects(), dueSoon: store.dueSoon({ days: 7, limit: 12 }) }));
+app.get('/api/home', async () => ({ projects: store.listProjects(), dueSoon: store.dueSoon({ days: 7, limit: 12 }), tags: store.listTags() }));
+
+app.get('/api/tags', async () => store.listTags());
+app.patch('/api/tags/:id', async (req) => store.updateTag(id(req), req.body));
+app.delete('/api/tags/:id', async (req) => store.deleteTag(id(req)));
 app.get('/api/projects', async () => store.listProjects());
 app.post('/api/projects', async (req, reply) => reply.code(201).send(store.createProject(req.body)));
 app.get('/api/projects/:id/board', async (req) => store.getBoard(id(req)));
@@ -134,12 +138,13 @@ app.post('/api/projects/:id/move', async (req) => store.moveProject(id(req), Num
 app.delete('/api/projects/:id', async (req) => store.deleteProject(id(req)));
 
 app.get('/api/tasks', async (req) => {
-  const { project, column, q, archived, dueWithinDays, overdue, limit } = req.query;
+  const { project, column, q, tag, archived, dueWithinDays, overdue, limit } = req.query;
   const projectId = project ? store.resolveProject(project).id : undefined;
   return store.listTasks({
     projectId,
     columnId: column ? store.resolveColumn(column, projectId).id : undefined,
     query: q,
+    tag,
     archived: archived === 'all' ? 'all' : archived === 'true',
     dueWithinDays: dueWithinDays != null ? Number(dueWithinDays) : undefined,
     overdue: overdue === 'true',

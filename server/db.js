@@ -5,6 +5,7 @@ import { EventEmitter } from 'node:events';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { tagColor } from '../shared/tags.js';
 
 // Lives outside the project so the web app and MCP server always share one DB,
 // and so cloud-synced folders (iCloud/Dropbox) never touch a live SQLite file.
@@ -159,6 +160,33 @@ function migrate() {
       db.exec('PRAGMA user_version = 3');
     });
   }
+  if (user_version < 4) {
+    // v4: tags shared by tasks and projects (names unique regardless of case), and project priority
+    tx(() => {
+      db.exec(`
+        ALTER TABLE projects ADD COLUMN priority TEXT NOT NULL DEFAULT 'none';
+        CREATE TABLE tags (
+          id         INTEGER PRIMARY KEY,
+          name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+          color      TEXT    NOT NULL DEFAULT 'slate',
+          created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
+        CREATE TABLE task_tags (
+          task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          tag_id  INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+          PRIMARY KEY (task_id, tag_id)
+        );
+        CREATE TABLE project_tags (
+          project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+          PRIMARY KEY (project_id, tag_id)
+        );
+        CREATE INDEX task_tags_tag ON task_tags(tag_id);
+        CREATE INDEX project_tags_tag ON project_tags(tag_id);
+      `);
+      db.exec('PRAGMA user_version = 4');
+    });
+  }
 }
 
 const DEFAULT_COLUMNS = [
@@ -203,6 +231,7 @@ function mapProject(r) {
       icon: r.icon,
       color: r.color,
       description: r.description,
+      priority: r.priority,
       position: r.position,
       archived: !!r.archived,
       createdAt: r.created_at,
@@ -215,7 +244,7 @@ function mapSubtask(r) {
   return { id: r.id, taskId: r.task_id, title: r.title, done: !!r.done, position: r.position };
 }
 
-function mapTask(r, subtasks = []) {
+function mapTask(r, subtasks = [], tags = []) {
   return (
     r && {
       id: r.id,
@@ -235,6 +264,7 @@ function mapTask(r, subtasks = []) {
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       subtasks,
+      tags,
     }
   );
 }
@@ -248,7 +278,8 @@ function withSubtasks(rows) {
     if (!byTask.has(s.task_id)) byTask.set(s.task_id, []);
     byTask.get(s.task_id).push(mapSubtask(s));
   }
-  return rows.map((r) => mapTask(r, byTask.get(r.id) || []));
+  const tags = tagsFor('task_tags', 'task_id', ids);
+  return rows.map((r) => mapTask(r, byTask.get(r.id) || [], tags.get(r.id) || []));
 }
 
 // ---------- validation helpers ----------
@@ -396,7 +427,7 @@ export function getBoard(projectId = defaultProjectId()) {
   const tasks = withSubtasks(
     q('SELECT t.* FROM tasks t JOIN columns c ON c.id = t.column_id WHERE t.archived = 0 AND c.project_id = ? ORDER BY t.column_id, t.position').all(project.id)
   );
-  return { project, columns, tasks };
+  return { project, columns, tasks, tags: listTags() };
 }
 
 export function getTask(id) {
@@ -407,18 +438,25 @@ export function getTask(id) {
 
 /**
  * Flexible task listing for the API & MCP.
- * @param {{columnId?: number, query?: string, archived?: boolean|'all', dueWithinDays?: number, overdue?: boolean, limit?: number}} opts
+ * @param {{columnId?: number, query?: string, tag?: string, archived?: boolean|'all', dueWithinDays?: number, overdue?: boolean, limit?: number}} opts
  */
-export function listTasks({ projectId, columnId, query, archived = false, dueWithinDays, overdue, limit = 200 } = {}) {
+export function listTasks({ projectId, columnId, query, tag, archived = false, dueWithinDays, overdue, limit = 200 } = {}) {
   const where = [];
   const vals = [];
   if (projectId != null) where.push('column_id IN (SELECT id FROM columns WHERE project_id = ?)'), vals.push(Number(projectId));
   if (archived !== 'all') where.push('archived = ?'), vals.push(archived ? 1 : 0);
   if (columnId != null) where.push('column_id = ?'), vals.push(Number(columnId));
   if (query) {
-    where.push(`(title LIKE ? OR description LIKE ? OR note LIKE ? OR EXISTS (SELECT 1 FROM subtasks s WHERE s.task_id = tasks.id AND s.title LIKE ?))`);
+    where.push(
+      `(title LIKE ? OR description LIKE ? OR note LIKE ? OR EXISTS (SELECT 1 FROM subtasks s WHERE s.task_id = tasks.id AND s.title LIKE ?)
+        OR EXISTS (SELECT 1 FROM task_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.task_id = tasks.id AND g.name LIKE ?))`
+    );
     const like = `%${query}%`;
-    vals.push(like, like, like, like);
+    vals.push(like, like, like, like, like);
+  }
+  if (tag) {
+    where.push('EXISTS (SELECT 1 FROM task_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.task_id = tasks.id AND g.name = ?)');
+    vals.push(tagName(tag));
   }
   if (dueWithinDays != null || overdue) {
     where.push('due_at IS NOT NULL');
@@ -442,7 +480,7 @@ function defaultColumnId(projectId = defaultProjectId()) {
   return c.id;
 }
 
-export function createTask({ title, description, note, projectId, columnId, priority = 'none', dueAt, subtasks = [], placement = 'bottom' } = {}) {
+export function createTask({ title, description, note, projectId, columnId, priority = 'none', dueAt, subtasks = [], tags = [], placement = 'bottom' } = {}) {
   return tx(() => {
     const colId = columnId != null ? getColumn(columnId).id : defaultColumnId(projectId != null ? getProject(projectId).id : defaultProjectId());
     if (!PRIORITIES.includes(priority)) throw new AppError(400, `priority must be one of ${PRIORITIES.join(', ')}`);
@@ -466,6 +504,7 @@ export function createTask({ title, description, note, projectId, columnId, prio
       ).lastInsertRowid
     );
     subtasks.filter((s) => String(s).trim()).forEach((s, i) => q('INSERT INTO subtasks (task_id, title, position) VALUES (?, ?, ?)').run(id, cleanText(s, 'subtask', { max: 500, required: true }), (i + 1) * 1024));
+    if (tags?.length) setTags('task_tags', 'task_id', id, tags);
     return getTask(id);
   });
 }
@@ -497,8 +536,12 @@ export function updateTask(id, patch = {}) {
         sets.push('column_id = ?', 'position = ?'), vals.push(colId, p);
       }
     }
+    if (patch.tags !== undefined) {
+      setTags('task_tags', 'task_id', task.id, patch.tags);
+      if (!sets.length) sets.push('updated_at = ?'), vals.push(now());
+    }
     if (sets.length) {
-      sets.push('updated_at = ?'), vals.push(now());
+      if (!sets.includes('updated_at = ?')) sets.push('updated_at = ?'), vals.push(now());
       q(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ?`).run(...vals, task.id);
     }
     if (patch.columnId !== undefined && patch.columnId !== task.columnId) moveTask(task.id, { columnId: patch.columnId });
@@ -555,6 +598,7 @@ export function deleteTask(id) {
   return tx(() => {
     const task = getTask(id);
     q('DELETE FROM tasks WHERE id = ?').run(task.id);
+    pruneTags();
     return { deleted: task.id };
   });
 }
@@ -592,6 +636,7 @@ export function stopTimer(id) {
 export function getProject(id) {
   const p = mapProject(q('SELECT * FROM projects WHERE id = ?').get(Number(id)));
   if (!p) throw new AppError(404, `Project ${id} not found`);
+  p.tags = tagsFor('project_tags', 'project_id', [p.id]).get(p.id) || [];
   return p;
 }
 
@@ -624,6 +669,8 @@ function dueState(t, today, nowIso, weekEnd) {
 /** Every project with the numbers the home page shows: per-column counts, deadlines, progress. */
 export function listProjects({ includeArchived = true } = {}) {
   const projects = q(`SELECT * FROM projects ${includeArchived ? '' : 'WHERE archived = 0'} ORDER BY archived, position`).all().map(mapProject);
+  const projectTags = tagsFor('project_tags', 'project_id', projects.map((p) => p.id));
+  for (const p of projects) p.tags = projectTags.get(p.id) || [];
   const columns = listColumns();
   const colById = new Map(columns.map((c) => [c.id, c]));
   const tasks = q('SELECT column_id, due_at, due_has_time, completed_at, updated_at FROM tasks WHERE archived = 0').all();
@@ -701,15 +748,17 @@ export function dueSoon({ days = 7, limit = 12 } = {}) {
   }));
 }
 
-export function createProject({ name, icon = '📋', color = 'blue', description = '', copyColumnsFrom } = {}) {
+export function createProject({ name, icon = '📋', color = 'blue', description = '', priority = 'none', tags = [], copyColumnsFrom } = {}) {
   return tx(() => {
     const { m } = q('SELECT COALESCE(MAX(position), 0) AS m FROM projects').get();
+    if (!PRIORITIES.includes(priority)) throw new AppError(400, `priority must be one of ${PRIORITIES.join(', ')}`);
     const id = Number(
-      q('INSERT INTO projects (name, icon, color, description, position) VALUES (?, ?, ?, ?, ?)').run(
+      q('INSERT INTO projects (name, icon, color, description, priority, position) VALUES (?, ?, ?, ?, ?, ?)').run(
         cleanText(name, 'name', { max: 80, required: true }),
         cleanText(icon, 'icon', { max: 16, required: true }),
         COLORS.includes(color) ? color : 'blue',
         cleanText(description, 'description', { max: 280 }),
+        priority,
         m + 1024
       ).lastInsertRowid
     );
@@ -718,6 +767,7 @@ export function createProject({ name, icon = '📋', color = 'blue', description
     template.forEach(([colName, colColor, isDone, hidden], i) =>
       q('INSERT INTO columns (project_id, name, color, position, is_done, hidden) VALUES (?, ?, ?, ?, ?, ?)').run(id, colName, colColor, (i + 1) * 1024, isDone, hidden)
     );
+    if (tags?.length) setTags('project_tags', 'project_id', id, tags);
     return getProject(id);
   });
 }
@@ -734,6 +784,10 @@ export function updateProject(id, patch = {}) {
       if (!COLORS.includes(patch.color)) throw new AppError(400, `color must be one of ${COLORS.join(', ')}`);
       sets.push('color = ?'), vals.push(patch.color);
     }
+    if (patch.priority !== undefined) {
+      if (!PRIORITIES.includes(patch.priority)) throw new AppError(400, `priority must be one of ${PRIORITIES.join(', ')}`);
+      sets.push('priority = ?'), vals.push(patch.priority);
+    }
     if (patch.archived !== undefined) {
       if (patch.archived && !p.archived) {
         const { n } = q('SELECT COUNT(*) AS n FROM projects WHERE archived = 0').get();
@@ -741,7 +795,8 @@ export function updateProject(id, patch = {}) {
       }
       sets.push('archived = ?'), vals.push(patch.archived ? 1 : 0);
     }
-    if (sets.length) {
+    if (patch.tags !== undefined) setTags('project_tags', 'project_id', p.id, patch.tags);
+    if (sets.length || patch.tags !== undefined) {
       sets.push('updated_at = ?'), vals.push(now());
       q(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`).run(...vals, p.id);
     }
@@ -770,7 +825,108 @@ export function deleteProject(id) {
     q('DELETE FROM tasks WHERE column_id IN (SELECT id FROM columns WHERE project_id = ?)').run(p.id);
     q('DELETE FROM columns WHERE project_id = ?').run(p.id);
     q('DELETE FROM projects WHERE id = ?').run(p.id);
+    pruneTags();
     return { deleted: p.id, tasksDeleted: tasks };
+  });
+}
+
+// ---------- tags ----------
+// Shared by tasks and projects. A tag disappears when nothing uses it any more; its colour
+// comes from its name, so a re-added tag gets the same colour unless it was recoloured.
+
+const MAX_TAGS = 20;
+
+/** Clean a tag name: trims, drops a leading #, collapses spaces. */
+export function tagName(raw) {
+  const name = String(raw ?? '').trim().replace(/^#+/, '').replace(/\s+/g, ' ').trim();
+  if (!name) throw new AppError(400, 'Tag names can’t be empty');
+  if (name.length > 40) throw new AppError(400, `The tag “${name.slice(0, 20)}…” is too long (max 40 characters)`);
+  if (/[,]/.test(name)) throw new AppError(400, 'Tag names can’t contain commas');
+  return name;
+}
+
+/** Tag names per owner id, sorted alphabetically. */
+function tagsFor(table, key, ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const rows = q(`SELECT x.${key} AS owner, g.name FROM ${table} x JOIN tags g ON g.id = x.tag_id WHERE x.${key} IN (SELECT value FROM json_each(?)) ORDER BY g.name COLLATE NOCASE`).all(
+    JSON.stringify(ids)
+  );
+  for (const r of rows) {
+    if (!out.has(r.owner)) out.set(r.owner, []);
+    out.get(r.owner).push(r.name);
+  }
+  return out;
+}
+
+/** Ids for these names, creating tags that don't exist yet (existing spelling wins). */
+function ensureTags(names) {
+  return names.map((name) => {
+    const found = q('SELECT id FROM tags WHERE name = ?').get(name);
+    if (found) return found.id;
+    return Number(q('INSERT INTO tags (name, color) VALUES (?, ?)').run(name, tagColor(name)).lastInsertRowid);
+  });
+}
+
+function pruneTags() {
+  q('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM task_tags) AND id NOT IN (SELECT tag_id FROM project_tags)').run();
+}
+
+/** Replace the tags of one task or project. */
+function setTags(table, key, ownerId, raw) {
+  if (!Array.isArray(raw)) throw new AppError(400, 'tags must be a list of names');
+  const seen = new Set();
+  const names = [];
+  for (const r of raw) {
+    const n = tagName(r);
+    if (!seen.has(n.toLowerCase())) seen.add(n.toLowerCase()), names.push(n);
+  }
+  if (names.length > MAX_TAGS) throw new AppError(400, `At most ${MAX_TAGS} tags per item`);
+  q(`DELETE FROM ${table} WHERE ${key} = ?`).run(ownerId);
+  for (const tagId of ensureTags(names)) q(`INSERT INTO ${table} (${key}, tag_id) VALUES (?, ?)`).run(ownerId, tagId);
+  pruneTags();
+}
+
+/** Every tag with how many active tasks and projects use it. */
+export function listTags() {
+  return q(
+    `SELECT g.id, g.name, g.color,
+       (SELECT COUNT(*) FROM task_tags tt JOIN tasks t ON t.id = tt.task_id WHERE tt.tag_id = g.id AND t.archived = 0) AS tasks,
+       (SELECT COUNT(*) FROM project_tags pt JOIN projects p ON p.id = pt.project_id WHERE pt.tag_id = g.id AND p.archived = 0) AS projects
+     FROM tags g ORDER BY g.name COLLATE NOCASE`
+  ).all().map((r) => ({ id: r.id, name: r.name, color: r.color, tasks: r.tasks, projects: r.projects }));
+}
+
+export function resolveTag(ref) {
+  const row = typeof ref === 'number' || /^\d+$/.test(String(ref)) ? q('SELECT * FROM tags WHERE id = ?').get(Number(ref)) : q('SELECT * FROM tags WHERE name = ?').get(tagName(ref));
+  if (!row) throw new AppError(404, `No tag called “${ref}”`);
+  return { id: row.id, name: row.name, color: row.color };
+}
+
+/** Rename or recolour a tag everywhere it's used. */
+export function updateTag(ref, { name, color } = {}) {
+  return tx(() => {
+    const tag = resolveTag(ref);
+    if (name !== undefined) {
+      const next = tagName(name);
+      const clash = q('SELECT id FROM tags WHERE name = ? AND id != ?').get(next, tag.id);
+      if (clash) throw new AppError(409, `There’s already a tag called “${next}”`);
+      q('UPDATE tags SET name = ? WHERE id = ?').run(next, tag.id);
+    }
+    if (color !== undefined) {
+      if (!COLORS.includes(color)) throw new AppError(400, `color must be one of ${COLORS.join(', ')}`);
+      q('UPDATE tags SET color = ? WHERE id = ?').run(color, tag.id);
+    }
+    return listTags().find((t) => t.id === tag.id);
+  });
+}
+
+/** Remove a tag from every task and project. */
+export function deleteTag(ref) {
+  return tx(() => {
+    const tag = resolveTag(ref);
+    q('DELETE FROM tags WHERE id = ?').run(tag.id);
+    return { deleted: tag.id };
   });
 }
 

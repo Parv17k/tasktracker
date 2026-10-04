@@ -20,6 +20,7 @@ function searchText(task, column) {
     task.description,
     task.note,
     ...task.subtasks.map((s) => s.title),
+    ...(task.tags || []).map((t) => `#${t} ${t}`),
     column?.name,
     PRIORITY_WORDS[task.priority],
     due && `${due.label} ${due.date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`,
@@ -39,6 +40,12 @@ function matches(task, column, query) {
     .split(/\s+/)
     .filter(Boolean)
     .every((word) => text.includes(word));
+}
+
+/** With tags selected, a task shows if it has any of them. */
+function tagMatches(task, selected) {
+  if (!selected.length) return true;
+  return (task.tags || []).some((t) => selected.includes(t.toLowerCase()));
 }
 
 function dueMatches(task, filter, isDoneCol) {
@@ -72,19 +79,24 @@ export function Board() {
   const tasks = useBoard((s) => s.tasks);
   const query = useBoard((s) => s.query);
   const dueFilter = useBoard((s) => s.dueFilter);
+  const tagFilter = useBoard((s) => s.tagFilter);
   const { moveTask, setDragging, reorderColumn } = useBoard.getState();
   const [activeColumnId, setActiveColumnId] = useState(null);
 
   const visible = useMemo(() => columns.filter((c) => !c.hidden), [columns]);
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
-  const filtered = !!query || dueFilter !== 'all';
+  const filtered = !!query || dueFilter !== 'all' || tagFilter.length > 0;
 
   // column key -> ordered task ids, honouring the active filters
   const derived = useMemo(() => {
     const out = {};
-    for (const c of visible) out[colKey(c.id)] = tasksForColumn(tasks, c.id).filter((t) => matches(t, c, query) && dueMatches(t, dueFilter, c.isDone)).map((t) => t.id);
+    for (const c of visible) {
+      out[colKey(c.id)] = tasksForColumn(tasks, c.id)
+        .filter((t) => matches(t, c, query) && dueMatches(t, dueFilter, c.isDone) && tagMatches(t, tagFilter))
+        .map((t) => t.id);
+    }
     return out;
-  }, [visible, tasks, query, dueFilter]);
+  }, [visible, tasks, query, dueFilter, tagFilter]);
 
   // while dragging we work on a local copy so cards can hop between columns smoothly
   const [dragItems, setDragItems] = useState(null);

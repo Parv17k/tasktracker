@@ -15,7 +15,7 @@ Ask it what matters today. Let your agents manage tasks over MCP. Keep every byt
 [![React 19](https://img.shields.io/badge/react-19-149eca?logo=react&logoColor=white)](https://react.dev)
 [![SQLite](https://img.shields.io/badge/sqlite-built--in-0f80cc?logo=sqlite&logoColor=white)](https://nodejs.org/api/sqlite.html)
 [![AI chat](https://img.shields.io/badge/AI_chat-OpenAI--compatible-10a37f)](#-ai-built-in)
-[![MCP](https://img.shields.io/badge/MCP-16_tools-8a63d2)](https://modelcontextprotocol.io)
+[![MCP](https://img.shields.io/badge/MCP-18_tools-8a63d2)](https://modelcontextprotocol.io)
 [![Installable](https://img.shields.io/badge/PWA-installable-5a0fc8)](#-install-it-and-get-reminders)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg)](CONTRIBUTING.md)
@@ -35,7 +35,7 @@ Ask it what matters today. Let your agents manage tasks over MCP. Keep every byt
 Most task apps are either cloud-hosted and heavy, or plain text and bare. Task Tracker sits in between, and it's built for working **with** AI:
 
 - ✨ **Ask your board anything, and let it act with your OK.** "What should I focus on today?" "Move the overdue ones to Friday." The assistant proposes changes and nothing happens until you approve. Bring any OpenAI-compatible model: OpenAI, OpenRouter, Groq, or a local one with Ollama or LM Studio.
-- 🤖 **Agents are first-class users.** A built-in [MCP](https://modelcontextprotocol.io) server gives Claude, Cursor and other agents 16 tools to read, create, move and complete tasks, and you watch it happen live.
+- 🤖 **Agents are first-class users.** A built-in [MCP](https://modelcontextprotocol.io) server gives Claude, Cursor and other agents 18 tools to read, create, move, tag and complete tasks, and you watch it happen live.
 - 🗂️ **Every project at a glance.** A home page shows each project's tasks by status, what's overdue, and what's coming up across all of them.
 - 🧘 **Low cognitive load.** Four columns, one click to open a card, no Save buttons. Everything autosaves.
 - ⚡ **Fast.** One SQLite query loads a whole board in about 1 ms, and the UI updates optimistically, so nothing waits on the network.
@@ -68,7 +68,7 @@ Click ✨ in the top bar and chat with your board.
 
 - **Grounded answers**: every question carries a compact snapshot of your projects, columns and tasks, with due dates, priorities, subtasks and tracked time. The project you have open comes first.
 - **Any OpenAI-compatible provider**: one-click presets for OpenAI, OpenRouter, Groq, Ollama and LM Studio, or any base URL. *Load models* lists what's available and tests the connection.
-- **Acts with your approval**: ask it to move, reschedule, reprioritise, create or complete tasks, and it shows an approval card. Untick anything you don't want, then **Apply**. Nothing changes until you do.
+- **Acts with your approval**: ask it to move, reschedule, reprioritise, tag, create or complete tasks, and it shows an approval card. Untick anything you don't want, then **Apply**. Nothing changes until you do.
 - **Streams as it thinks**, with a Stop button. The conversation follows you between pages.
 - **Clear when something's wrong**: if your provider is down, the key is wrong or the URL is off, you get a plain explanation and a next step, not an error dump.
 - **Private by design**: your API key is stored in your local database and sent only to your provider. The browser only ever sees `…last4`.
@@ -111,6 +111,7 @@ Each project gets its own board. The home page shows them all in a single glance
 - **Progress ring**, overdue and due-this-week counts, and when the project was last touched
 - **Coming up**: everything due in the next 7 days across *all* projects; click a card to open that task
 - **Drag projects to reorder them**, and create, edit, archive or delete them. New projects start with the four default columns, or copy another project's
+- **Priority and tags on projects**: mark what matters most (Low to Urgent), tag projects (`work`, `personal`, `Q4`…) and filter the home page by tag
 - Jump between projects from the switcher in each board's title
 
 <img src="docs/screenshots/board-paper.png" alt="A project board in the Paper theme" width="100%" />
@@ -131,9 +132,10 @@ Each project gets its own board. The home page shows them all in a single glance
 ### ✍️ Rich, frictionless cards
 - Title, description, **subtasks** with a progress bar, and a lined **note** pad
 - Priority levels from Low to Urgent
+- **Tags** in colour: type `#design` when adding a task or pick from suggestions, click any tag to filter the board, and rename, recolour or delete tags in one place
 - **Archive** with one click (with Undo), then restore or delete from the archive
 - Tick the circle on a card to complete it
-- **Search** finds text in any field: title, description, note and subtasks
+- **Search** finds text in any field: title, description, note, subtasks and tags
 
 </td>
 </tr>
@@ -153,11 +155,12 @@ Each project gets its own board. The home page shows them all in a single glance
 Press <kbd>N</kbd> and type naturally:
 
 ```
-Send invoice to Acme @fri !high
+Send invoice to Acme @fri !high #finance
 ```
 
 - `@today` `@tomorrow` `@mon`…`@sun` `@nextweek` `@3d` `@2w` `@2026-12-01` set the deadline
 - `!low` `!med` `!high` `!urgent` set the priority
+- `#finance` `#q4-launch` add tags
 - <kbd>/</kbd> to search, <kbd>Esc</kbd> to close
 
 </td>
@@ -231,17 +234,18 @@ Then just ask:
 > *"Log what you just did on #12 and mark it complete."*
 
 <details>
-<summary><b>All 16 MCP tools</b></summary>
+<summary><b>All 18 MCP tools</b></summary>
 
 | Tool | What it does |
 | --- | --- |
 | `list_projects` | Every project with task counts per column and deadlines. A good first call |
-| `create_project` | New project with its own board |
+| `create_project` | New project with its own board, priority and tags |
+| `update_project` | Rename, re-icon, set priority, or add/remove tags |
 | `get_board` | Columns and tasks of one project (`project: "website"`, fuzzy) |
-| `list_tasks` | Search across all projects or one: column, text, `due_within_days`, `overdue`, archived |
+| `list_tasks` | Search across all projects or one: column, text, `tag`, `due_within_days`, `overdue`, archived |
 | `get_task` | Full details, including subtask ids |
-| `create_task` | Project, column, title, description, note, priority, due date, subtasks |
-| `update_task` | Change any field (`due: ""` clears the deadline) |
+| `create_task` | Project, column, title, description, note, priority, due date, subtasks, tags |
+| `update_task` | Change any field (`due: ""` clears the deadline), `add_tags` / `remove_tags` |
 | `move_task` | Move by column name (fuzzy: `"in prog"` works) or id |
 | `complete_task` | Move to the done column, optionally appending a summary |
 | `archive_task` | Archive, or restore with `archived: false` |
@@ -251,6 +255,7 @@ Then just ask:
 | `delete_subtask` | Remove a subtask |
 | `track_time` | Start or stop the time-spent timer |
 | `list_columns` | A project's columns with ids, hidden flags and the done column |
+| `list_tags` | Every tag with how many tasks and projects use it |
 
 </details>
 
@@ -270,7 +275,7 @@ flowchart LR
         direction TB
         API["⚡ <b>Fastify API</b><br/><small>server/index.js · REST + SSE</small>"]
         CHAT["✨ <b>Chat</b><br/><small>server/chat.js · board snapshot</small>"]
-        MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 16 tools</small>"]
+        MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 18 tools</small>"]
         CORE["🧠 <b>Shared data layer</b><br/><small>server/db.js · rules &amp; validation</small>"]
         WATCH["👀 <b>Change watcher</b><br/><small>PRAGMA data_version</small>"]
     end
@@ -423,7 +428,7 @@ The AI chat provider is configured in the app (✨ → settings) and stored in t
 | `GET` | `/api/projects/:id/board` | A project's columns and active tasks, with subtasks |
 | `PATCH` / `DELETE` | `/api/projects/:id` | Edit, archive or delete a project |
 | `POST` | `/api/projects/:id/move` | `{ index }` to reorder |
-| `GET` | `/api/tasks?project=&q=&column=&overdue=&dueWithinDays=&archived=` | Search and filter |
+| `GET` | `/api/tasks?project=&q=&tag=&column=&overdue=&dueWithinDays=&archived=` | Search and filter |
 | `POST` | `/api/tasks` | Create |
 | `PATCH` | `/api/tasks/:id` | Update fields, archive or restore |
 | `POST` | `/api/tasks/:id/move` | `{ columnId, index }` |
@@ -439,6 +444,8 @@ The AI chat provider is configured in the app (✨ → settings) and stored in t
 | `GET` / `PATCH` | `/api/settings/llm` | Chat provider (base URL, model, key). The key is write-only |
 | `GET` | `/api/chat/models` | Models offered by the provider (also a connection test) |
 | `POST` | `/api/chat` | `{ messages, projectId }`, streams the reply as plain text |
+| `GET` | `/api/tags` | Every tag with its colour and usage counts |
+| `PATCH` / `DELETE` | `/api/tags/:id` | Rename or recolour a tag everywhere, or delete it |
 | `GET` | `/api/events` | Server-Sent Events stream (`change`, `reminder`) |
 
 </details>
@@ -450,6 +457,7 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 ### ✅ Recently shipped
 - ✨ AI chat with any OpenAI-compatible provider, grounded in your board
 - ✅ The assistant can change your board, with an approval card for every change
+- 🏷️ Tags on tasks and projects, and project priority
 - 🗂️ Multiple projects with a home page, drag-to-reorder projects and columns
 - 📲 Installable app with deadline reminders that work while it's closed
 - 🎨 Twenty-four themes
@@ -475,7 +483,7 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 | --- | --- |
 | 🎯 **Goals**: link tasks to longer-term goals and track progress toward them | 📋 Planned |
 | 🔁 **Recurring tasks**: daily, weekly, monthly, or custom | 🙋 Help wanted |
-| 🏷️ **Labels and saved filters** | 🙋 Help wanted |
+| 💾 **Saved filters**: keep a tag + deadline + search combination one click away | 🙋 Help wanted |
 | 🗓️ **Calendar and timeline views** of deadlines across projects | 📋 Planned |
 | 🔗 **Task dependencies**: "blocked by #12" | 🧪 Exploring |
 | 🍅 **Focus mode**: one task, a Pomodoro timer, everything else hidden | 🙋 Help wanted |

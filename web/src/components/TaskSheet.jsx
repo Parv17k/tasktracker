@@ -3,6 +3,7 @@ import { Archive, Check, ChevronDown, GripVertical, MoreHorizontal, Pause, Play,
 import { formatDuration } from '../../../shared/due.js';
 import { useBoard } from '../store';
 import { DuePicker } from './Due';
+import { TagEditor } from './Tags';
 import { PRIORITY, PriorityIcon } from './TaskCard';
 import { Button, ColorDot, cx, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Sheet, useNow } from './ui';
 
@@ -305,6 +306,9 @@ export function TaskSheet() {
             </Row>
             <Row label="Time spent">
               <TimeTracker task={t} />
+            </Row>
+            <Row label="Tags">
+              <TagEditor value={t.tags || []} onChange={(tags) => updateTask(t.id, { tags }).then(() => useBoard.getState().refreshTags(), () => {})} />
             </Row>
           </div>
 

@@ -39,6 +39,10 @@ export const useBoard = create((set, get) => {
     homeLoaded: false,
     query: '',
     dueFilter: 'all', // all | overdue | week
+    // every tag with its colour and usage; board and home filters hold lower-cased names
+    tags: [],
+    tagFilter: [],
+    homeTagFilter: [],
     selectedId: null,
     dragging: false,
     quickAddColumn: null,
@@ -50,8 +54,8 @@ export const useBoard = create((set, get) => {
       if (dragging) return;
       if (projectId == null) return get().loadHome();
       try {
-        const { project, columns, tasks } = await api.board(projectId);
-        if (!get().dragging && get().projectId === projectId) set({ project, columns, tasks, loaded: true });
+        const { project, columns, tasks, tags } = await api.board(projectId);
+        if (!get().dragging && get().projectId === projectId) set({ project, columns, tasks, tags, loaded: true });
       } catch (err) {
         if (err.status === 404) return get().openProject(null);
         toast.error(`Could not load board: ${err.message}`);
@@ -60,8 +64,8 @@ export const useBoard = create((set, get) => {
 
     async loadHome() {
       try {
-        const { projects, dueSoon } = await api.home();
-        set({ projects, dueSoon, homeLoaded: true });
+        const { projects, dueSoon, tags } = await api.home();
+        set({ projects, dueSoon, tags, homeLoaded: true });
       } catch (err) {
         toast.error(`Could not load projects: ${err.message}`);
       }
@@ -73,7 +77,7 @@ export const useBoard = create((set, get) => {
         if (get().pendingSelect != null) set({ selectedId: get().pendingSelect, pendingSelect: null });
         return get().load();
       }
-      set({ projectId: id, project: null, columns: [], tasks: [], loaded: false, query: '', dueFilter: 'all', quickAddColumn: null, selectedId: get().pendingSelect ?? null, pendingSelect: null });
+      set({ projectId: id, project: null, columns: [], tasks: [], loaded: false, query: '', dueFilter: 'all', tagFilter: [], quickAddColumn: null, selectedId: get().pendingSelect ?? null, pendingSelect: null });
       return get().load();
     },
     pendingSelect: null,
@@ -135,6 +139,41 @@ export const useBoard = create((set, get) => {
     },
     setQuery: (query) => set({ query }),
     setDueFilter: (dueFilter) => set({ dueFilter }),
+    /** Add or remove a tag from the board filter (or the home page's, with `home`). */
+    toggleTagFilter(name, home = false) {
+      const key = home ? 'homeTagFilter' : 'tagFilter';
+      const n = name.toLowerCase();
+      set((s) => ({ [key]: s[key].includes(n) ? s[key].filter((x) => x !== n) : [...s[key], n] }));
+    },
+    clearTagFilter: (home = false) => set({ [home ? 'homeTagFilter' : 'tagFilter']: [] }),
+
+    // ---------- tags ----------
+
+    /** Refresh the tag list (after a task or project gained a tag that may be new). */
+    async refreshTags() {
+      try {
+        set({ tags: await api.tags() });
+      } catch {}
+    },
+
+    async renameTag(id, name) {
+      const old = get().tags.find((t) => t.id === id);
+      await optimistic(null, () => api.updateTag(id, { name }));
+      // keep filters pointing at the renamed tag
+      const swap = (list) => list.map((n) => (n === old?.name.toLowerCase() ? name.trim().replace(/^#+/, '').toLowerCase() : n));
+      set((s) => ({ tagFilter: swap(s.tagFilter), homeTagFilter: swap(s.homeTagFilter) }));
+      get().load();
+    },
+    async recolorTag(id, color) {
+      await optimistic((s) => ({ tags: s.tags.map((t) => (t.id === id ? { ...t, color } : t)) }), () => api.updateTag(id, { color }));
+    },
+    async deleteTag(id) {
+      const old = get().tags.find((t) => t.id === id);
+      await optimistic((s) => ({ tags: s.tags.filter((t) => t.id !== id) }), () => api.deleteTag(id));
+      const drop = (list) => list.filter((n) => n !== old?.name.toLowerCase());
+      set((s) => ({ tagFilter: drop(s.tagFilter), homeTagFilter: drop(s.homeTagFilter) }));
+      get().load();
+    },
     select: (selectedId) => set({ selectedId }),
     setDragging: (dragging) => set({ dragging }),
     setQuickAdd: (quickAddColumn) => set({ quickAddColumn }),

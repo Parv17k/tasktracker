@@ -38,6 +38,7 @@ server/chat.js      ← AI chat: board snapshot + streaming proxy to an OpenAI-c
 server/actions.js   ← changes the assistant proposes: preview for approval, then apply in one transaction
 mcp/index.js        ← MCP server for AI agents (uses server/db.js)
 shared/due.js       ← "Due tomorrow" / "Overdue 2d" labels, shared by UI + MCP
+shared/tags.js      ← tag colours and add/remove helpers, shared by UI, chat + MCP
 web/public/
   sw.js             ← service worker: notifications, installable app shell
   manifest.webmanifest, icons/
@@ -48,7 +49,7 @@ web/src/
   themes.js         ← theme list for the picker
   styles.css        ← theme colours (CSS variables) + global styles
   dates.js          ← date presets & quick-add parser (@fri !high)
-  components/       ← Home, Board, Column, TaskCard, TaskSheet, Reminders, Chat, TopBar, …
+  components/       ← Home, Board, Column, TaskCard, TaskSheet, Tags, Reminders, Chat, TopBar, …
 test/               ← node:test suite
 ```
 
@@ -97,7 +98,8 @@ The [roadmap in the README](README.md#-roadmap) has the bigger picture. These ar
 | Keyboard shortcuts help dialog (<kbd>?</kbd>) | 🟢 Easy |
 | Clickable `#id` task links in chat replies | 🟢 Easy |
 | Copy button on chat replies | 🟢 Easy |
-| Labels / tags on tasks, with filtering | 🟡 Medium |
+| Saved filters (a tag + deadline + search combination) | 🟡 Medium |
+| Sort the home page by project priority | 🟢 Easy |
 | Snooze a reminder from the notification | 🟡 Medium |
 | Export / import the board as JSON or Markdown | 🟡 Medium |
 | Recurring tasks (daily, weekly…) | 🟡 Medium |

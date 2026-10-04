@@ -3,6 +3,7 @@
 // approved ones in one transaction through the same data layer as the board and MCP tools.
 import * as store from './db.js';
 import { dueInfo } from '../shared/due.js';
+import { changeTags } from '../shared/tags.js';
 
 export const MAX_ACTIONS = 20;
 
@@ -55,6 +56,33 @@ function due(v) {
   return [String(v), info ? info.label.replace(/^Due /, 'due ').replace(/^Overdue/, 'overdue') : String(v)];
 }
 
+/** A list of tag names as the data layer will store them (throws a plain message if one is bad). */
+function tagNames(v, what = 'tags') {
+  if (v == null) return [];
+  const list = Array.isArray(v) ? v : [v];
+  if (list.length > 20) fail('That’s too many tags at once.');
+  return list.map((t) => {
+    if (typeof t !== 'string') fail(`The ${what} should be names.`);
+    try {
+      return store.tagName(t);
+    } catch (err) {
+      return fail(err.message);
+    }
+  });
+}
+
+const tagWords = (list) => list.map((t) => `#${t}`).join(' ');
+
+/** Describe a tag change, or null when it changes nothing. */
+function tagChange(current, add, remove) {
+  const next = changeTags(current, { add, remove });
+  const lower = (l) => l.map((t) => t.toLowerCase());
+  const added = next.filter((t) => !lower(current).includes(t.toLowerCase()));
+  const removed = current.filter((t) => !lower(next).includes(t.toLowerCase()));
+  if (!added.length && !removed.length) return null;
+  return { next, summary: [added.length && `add ${tagWords(added)}`, removed.length && `remove ${tagWords(removed)}`].filter(Boolean).join(', ') };
+}
+
 function resolveColumnIn(ref, projectId) {
   try {
     return store.resolveColumn(ref, projectId);
@@ -89,11 +117,12 @@ function plan(a) {
       const p = priority(a.priority);
       const [dueAt, dueLabel] = due(a.due);
       const subtasks = Array.isArray(a.subtasks) ? a.subtasks.map((s) => text(s, 'subtask', { required: true, max: 500 })).slice(0, 30) : [];
-      const extras = [p && p !== 'none' && `${p} priority`, dueLabel, subtasks.length && `${subtasks.length} subtask${subtasks.length === 1 ? '' : 's'}`].filter(Boolean);
+      const tags = tagNames(a.tags);
+      const extras = [p && p !== 'none' && `${p} priority`, dueLabel, subtasks.length && `${subtasks.length} subtask${subtasks.length === 1 ? '' : 's'}`, tags.length && tagWords(tags)].filter(Boolean);
       return {
         verb: 'Create',
         summary: `“${title}” in ${project.icon} ${project.name} › ${column.name}${extras.length ? ` · ${extras.join(' · ')}` : ''}`,
-        run: () => store.createTask({ projectId: project.id, columnId: column.id, title, description, priority: p, dueAt: dueAt || undefined, subtasks }),
+        run: () => store.createTask({ projectId: project.id, columnId: column.id, title, description, priority: p, dueAt: dueAt || undefined, subtasks, tags }),
       };
     }
 
@@ -118,6 +147,11 @@ function plan(a) {
         const [dueAt, dueLabel] = due(a.due);
         const same = dueAt ? t.dueAt && store.parseDue(dueAt)[0] === t.dueAt : !t.dueAt;
         if (!same) (patch.dueAt = dueAt), changes.push(dueAt ? dueLabel : 'remove deadline');
+      }
+      if (a.add_tags !== undefined || a.remove_tags !== undefined || a.tags !== undefined) {
+        const base = a.tags !== undefined ? tagNames(a.tags) : t.tags;
+        const c = a.tags !== undefined ? tagChange(t.tags, base, t.tags.filter((x) => !base.some((y) => y.toLowerCase() === x.toLowerCase()))) : tagChange(t.tags, tagNames(a.add_tags), tagNames(a.remove_tags, 'tags to remove'));
+        if (c) (patch.tags = c.next), changes.push(`tags: ${c.summary}`);
       }
       if (!changes.length) fail(`${label(t)} already looks like that.`);
       return { verb: 'Edit', summary: `${label(t)}: ${changes.join(', ')}`, run: () => store.updateTask(t.id, patch) };
@@ -171,7 +205,31 @@ function plan(a) {
       const name = text(a.name, 'project name', { required: true, max: 80 });
       const icon = text(a.icon, 'icon', { max: 16 }) || '📋';
       const description = text(a.description, 'project description', { max: 500 }) || '';
-      return { verb: 'Create project', summary: `${icon} ${name} (with the four default columns)`, run: () => store.createProject({ name, icon, description }) };
+      const tags = tagNames(a.tags);
+      const p = priority(a.priority);
+      const extras = [p && p !== 'none' && `${p} priority`, tags.length && tagWords(tags)].filter(Boolean);
+      return {
+        verb: 'Create project',
+        summary: `${icon} ${name} (with the four default columns)${extras.length ? ` · ${extras.join(' · ')}` : ''}`,
+        run: () => store.createProject({ name, icon, description, priority: p, tags }),
+      };
+    }
+
+    case 'update_project':
+    case 'tag_project': {
+      const project = resolveProjectRef(a.project);
+      const patch = {};
+      const changes = [];
+      if (a.priority !== undefined) {
+        const p = priority(a.priority);
+        if (p !== project.priority) (patch.priority = p), changes.push(`priority → ${p}`);
+      }
+      if (a.add_tags !== undefined || a.remove_tags !== undefined) {
+        const c = tagChange(project.tags, tagNames(a.add_tags), tagNames(a.remove_tags, 'tags to remove'));
+        if (c) (patch.tags = c.next), changes.push(`tags: ${c.summary}`);
+      }
+      if (!changes.length) fail(`${project.icon} ${project.name} already looks like that.`);
+      return { verb: 'Edit project', summary: `${project.icon} ${project.name}: ${changes.join(', ')}`, run: () => store.updateProject(project.id, patch) };
     }
 
     default:

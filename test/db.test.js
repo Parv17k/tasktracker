@@ -1,11 +1,13 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-process.env.TASKTRACKER_DB = join(mkdtempSync(join(tmpdir(), 'tt-')), 'test.db');
+const tmp = mkdtempSync(join(tmpdir(), 'tt-'));
+process.env.TASKTRACKER_DB = join(tmp, 'test.db');
 const store = await import('../server/db.js');
+after(() => (store.db.close(), rmSync(tmp, { recursive: true, force: true })));
 const { dueInfo } = await import('../shared/due.js');
 
 test('seeds four default columns with a done column', () => {

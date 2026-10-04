@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Archive, Check, GripVertical, ListChecks, StickyNote, Timer, AlignLeft } from 'lucide-react';
 import { useBoard } from '../store';
 import { DueChip } from './Due';
+import { TagList } from './Tags';
 import { cx, Tip } from './ui';
 
 export const PRIORITY = {
@@ -33,6 +34,7 @@ export function PriorityIcon({ priority, className }) {
 function CardBody({ task, isDone, overlay }) {
   const archiveTask = useBoard((s) => s.archiveTask);
   const completeTask = useBoard((s) => s.completeTask);
+  const tagFilter = useBoard((s) => s.tagFilter);
   const total = task.subtasks.length;
   const done = task.subtasks.filter((s) => s.done).length;
 
@@ -79,6 +81,12 @@ function CardBody({ task, isDone, overlay }) {
           <Archive className="size-3.5" />
         </button>
       </div>
+
+      {task.tags?.length > 0 && (
+        <div className="mt-1.5 pl-6">
+          <TagList tags={task.tags} max={3} activeNames={tagFilter} onPick={overlay ? undefined : (name) => useBoard.getState().toggleTagFilter(name)} />
+        </div>
+      )}
 
       {(task.dueAt || total > 0 || task.priority !== 'none' || task.note || task.description || task.timerStartedAt) && (
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 pl-6 text-[11px] text-muted">

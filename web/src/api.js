@@ -36,6 +36,10 @@ export const api = {
   updateColumn: (id, patch) => request('PATCH', `/api/columns/${id}`, patch),
   moveColumn: (id, index) => request('POST', `/api/columns/${id}/move`, { index }),
   deleteColumn: (id, moveTo) => request('DELETE', `/api/columns/${id}${moveTo ? `?moveTo=${moveTo}` : ''}`),
+
+  tags: () => request('GET', '/api/tags'),
+  updateTag: (id, patch) => request('PATCH', `/api/tags/${id}`, patch),
+  deleteTag: (id) => request('DELETE', `/api/tags/${id}`),
 };
 
 /** Subscribe to server-sent change events. Calls `onChange` for changes made elsewhere. */

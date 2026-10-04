@@ -6,6 +6,7 @@ import { THEMES } from '../themes';
 import { navigate, projectPath } from '../router';
 import { InstallButton, RemindersButton } from './Reminders';
 import { ChatButton } from './Chat';
+import { ManageTagsDialog, TagFilter } from './Tags';
 import { Button, ColorDot, cx, IconButton, Popover, PopoverContent, PopoverTrigger, Tip } from './ui';
 
 export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
@@ -14,6 +15,15 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
   const { setQuery, setDueFilter, setQuickAdd } = useBoard.getState();
   const columns = useBoard((s) => s.columns);
   const tasks = useBoard((s) => s.tasks);
+  const tagFilter = useBoard((s) => s.tagFilter);
+  const [manageTags, setManageTags] = useState(false);
+
+  // tags used on this board, most used first
+  const boardTags = useMemo(() => {
+    const counts = new Map();
+    for (const t of tasks) for (const name of t.tags || []) counts.set(name, (counts.get(name) || 0) + 1);
+    return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [tasks]);
 
   const stats = useMemo(() => {
     const doneCols = new Set(columns.filter((c) => c.isDone).map((c) => c.id));
@@ -93,6 +103,15 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
             </button>
           ))}
         </div>
+
+        <TagFilter
+          names={boardTags}
+          selected={tagFilter}
+          onToggle={(name) => useBoard.getState().toggleTagFilter(name)}
+          onClear={() => useBoard.getState().clearTagFilter()}
+          onManage={() => setManageTags(true)}
+        />
+        <ManageTagsDialog open={manageTags} onClose={() => setManageTags(false)} />
 
         <HiddenColumns />
 

@@ -1,12 +1,14 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-process.env.TASKTRACKER_DB = join(mkdtempSync(join(tmpdir(), 'tt-chat-')), 'test.db');
+const tmp = mkdtempSync(join(tmpdir(), 'tt-chat-'));
+process.env.TASKTRACKER_DB = join(tmp, 'test.db');
 const store = await import('../server/db.js');
+after(() => (store.db.close(), rmSync(tmp, { recursive: true, force: true })));
 const chat = await import('../server/chat.js');
 
 // a tiny OpenAI-compatible provider that records what it receives
@@ -44,11 +46,13 @@ test('provider settings validate and never expose the key', () => {
 test('board snapshot covers projects, columns, due labels and detail', () => {
   const now = new Date(2030, 0, 10, 9, 0);
   const pid = store.listProjects()[0].id;
-  const t = store.createTask({ title: 'Write report', priority: 'high', dueAt: '2030-01-11', description: 'Quarterly numbers', subtasks: ['draft', 'review'] });
+  const t = store.createTask({ title: 'Write report', priority: 'high', dueAt: '2030-01-11', description: 'Quarterly numbers', subtasks: ['draft', 'review'], tags: ['finance'] });
+  store.updateProject(pid, { tags: ['work'] });
   const text = chat.boardContext({ projectId: pid, now });
   assert.match(text, /Today is .*2030/);
   assert.match(text, /\(open on screen\)/);
-  assert.match(text, new RegExp(`- #${t.id} Write report · high priority · Due tomorrow \\(2030-01-11\\) · subtasks 0/2`));
+  assert.match(text, new RegExp(`- #${t.id} Write report · high priority · #finance · Due tomorrow \\(2030-01-11\\) · subtasks 0/2`));
+  assert.match(text, /^## .* #work \(open on screen\)$/m);
   assert.match(text, /Description: Quarterly numbers/);
   // a timed task late in the evening keeps its local date even when UTC has rolled over
   const late = store.createTask({ title: 'Evening call', dueAt: new Date(2030, 0, 10, 23, 30).toISOString() });

@@ -26,6 +26,7 @@ const localDue = (t) => (t.dueHasTime ? `${localDay(new Date(t.dueAt))} ${pad(ne
 function taskLine(t, { done, detail, now }) {
   const parts = [`- #${t.id} ${t.title}`];
   if (t.priority !== 'none') parts.push(`${t.priority} priority`);
+  if (t.tags?.length) parts.push(t.tags.map((g) => `#${g}`).join(' '));
   const due = !done && dueInfo(t.dueAt, t.dueHasTime, now);
   if (due) parts.push(`${due.label} (${localDue(t)})`);
   if (done && t.completedAt) parts.push(`completed ${localDay(new Date(t.completedAt))}`);
@@ -55,7 +56,9 @@ export function boardContext({ projectId = null, now = new Date() } = {}) {
   const render = (detail) =>
     active
       .map((p) => {
-        const lines = [`## ${p.icon} ${p.name}${p.id === projectId ? ' (open on screen)' : ''}`];
+        const tags = p.tags?.length ? ` ${p.tags.map((g) => `#${g}`).join(' ')}` : '';
+        const prio = p.priority !== 'none' ? ` · ${p.priority} priority` : '';
+        const lines = [`## ${p.icon} ${p.name}${prio}${tags}${p.id === projectId ? ' (open on screen)' : ''}`];
         if (p.description) lines.push(clip(p.description, 300));
         for (const c of columns.filter((c) => c.projectId === p.id)) {
           let list = tasks.filter((t) => t.columnId === c.id);
@@ -101,15 +104,18 @@ Only propose changes when the user asks for them or clearly agrees to a suggesti
 \`\`\`
 
 The block is a JSON array (at most ${MAX_ACTIONS} items) using these types:
-- {"type":"create_task","project":"<name>","column":"<name, optional>","title":"...","description":"...","priority":"low|medium|high|urgent","due":"YYYY-MM-DD or YYYY-MM-DDTHH:MM","subtasks":["..."]}
-- {"type":"update_task","task":<id>, then any of "title", "description", "priority", "due" (use "" to remove the deadline)}
+- {"type":"create_task","project":"<name>","column":"<name, optional>","title":"...","description":"...","priority":"low|medium|high|urgent","due":"YYYY-MM-DD or YYYY-MM-DDTHH:MM","subtasks":["..."],"tags":["..."]}
+- {"type":"update_task","task":<id>, then any of "title", "description", "priority", "due" (use "" to remove the deadline), "add_tags":["..."], "remove_tags":["..."]}
 - {"type":"move_task","task":<id>,"column":"<column name in that task's project>"}
 - {"type":"complete_task","task":<id>}
 - {"type":"archive_task","task":<id>}
 - {"type":"add_subtasks","task":<id>,"subtasks":["..."]}
 - {"type":"check_subtask","task":<id>,"subtask":"<subtask title>","done":true}
 - {"type":"add_note","task":<id>,"text":"..."}
-- {"type":"create_project","name":"...","icon":"<one emoji>","description":"..."}
+- {"type":"create_project","name":"...","icon":"<one emoji>","description":"...","priority":"low|medium|high|urgent","tags":["..."]}
+- {"type":"update_project","project":"<name>", then any of "priority", "add_tags":["..."], "remove_tags":["..."]}
+
+Tags appear as #name in the snapshot; reuse existing tag names where they fit.
 
 Rules: use task ids and names exactly as in the snapshot; dates are in the user's local time; you cannot delete anything (archive instead). Never say a change is done: the user approves it. Messages in brackets like "[Changes applied: …]" tell you what the user approved.
 

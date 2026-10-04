@@ -1,11 +1,13 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-process.env.TASKTRACKER_DB = join(mkdtempSync(join(tmpdir(), 'tt-actions-')), 'test.db');
+const tmp = mkdtempSync(join(tmpdir(), 'tt-actions-'));
+process.env.TASKTRACKER_DB = join(tmp, 'test.db');
 const store = await import('../server/db.js');
+after(() => (store.db.close(), rmSync(tmp, { recursive: true, force: true })));
 const actions = await import('../server/actions.js');
 
 const pid = store.listProjects()[0].id;
@@ -90,4 +92,30 @@ test('apply is all or nothing', () => {
     (err) => err.status === 400 && /^Nothing was changed\. There’s no column called “Nowhere”/.test(err.message)
   );
   assert.equal(store.getTask(t.id).title, 'Untouched');
+});
+
+test('tags: propose and apply tag changes on tasks and projects', () => {
+  const t = store.createTask({ projectId: pid, title: 'Tag me', tags: ['old'] });
+  const items = actions.preview([
+    { type: 'update_task', task: t.id, add_tags: ['#Design', 'old'], remove_tags: ['OLD'] },
+    { type: 'create_task', project: pid, title: 'Tagged at birth', tags: ['q4'] },
+    { type: 'update_project', project: pid, add_tags: ['work'], priority: 'high' },
+    { type: 'update_task', task: t.id, add_tags: ['a,b'] },
+    { type: 'update_task', task: t.id, remove_tags: ['not-there'] },
+  ]);
+  assert.equal(items[0].summary, `#${t.id} Tag me: tags: add #Design, remove #old`);
+  assert.match(items[1].summary, /#q4$/);
+  assert.match(items[2].summary, /: priority → high, tags: add #work$/);
+  assert.equal(items[3].ok, false);
+  assert.match(items[3].summary, /commas/);
+  assert.match(items[4].summary, /already looks like that/);
+  actions.apply([
+    { type: 'update_task', task: t.id, add_tags: ['Design'], remove_tags: ['old'] },
+    { type: 'update_project', project: pid, add_tags: ['work'], priority: 'high' },
+    { type: 'create_project', name: 'Big bet', priority: 'urgent', tags: ['work'] },
+  ]);
+  assert.deepEqual(store.getTask(t.id).tags, ['Design']);
+  assert.deepEqual(store.getProject(pid).tags, ['work']);
+  assert.equal(store.getProject(pid).priority, 'high');
+  assert.equal(store.listProjects().find((p) => p.name === 'Big bet').priority, 'urgent');
 });

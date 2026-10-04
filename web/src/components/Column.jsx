@@ -9,6 +9,7 @@ import { parseQuickAdd } from '../dates';
 import { dueInfo } from '../../../shared/due.js';
 import { TaskCard, PRIORITY, PriorityIcon } from './TaskCard';
 import { toneClass } from './Due';
+import { TagChip, useTagColor } from './Tags';
 import { ColorDot, cx, IconButton, Kbd, Menu, MenuContent, MenuItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './ui';
 
 export function Column({ column, taskIds, tasksById, totalCount, filtered, isFirst, isLast, onRemove }) {
@@ -175,6 +176,7 @@ function QuickAdd({ column, onClose }) {
   const ref = useRef(null);
   const parsed = parseQuickAdd(value);
   const due = dueInfo(parsed.dueAt, false);
+  const tagColor = useTagColor();
 
   useEffect(() => {
     ref.current?.focus();
@@ -183,7 +185,10 @@ function QuickAdd({ column, onClose }) {
 
   const submit = () => {
     if (!parsed.title) return;
-    createTask({ title: parsed.title, columnId: column.id, dueAt: parsed.dueAt ?? undefined, priority: parsed.priority ?? undefined, placement: 'top' });
+    createTask({ title: parsed.title, columnId: column.id, dueAt: parsed.dueAt ?? undefined, priority: parsed.priority ?? undefined, tags: parsed.tags, placement: 'top' }).then(
+      (t) => t?.tags?.length && useBoard.getState().refreshTags(),
+      () => {}
+    );
     setValue('');
   };
 
@@ -216,9 +221,12 @@ function QuickAdd({ column, onClose }) {
             <PriorityIcon priority={parsed.priority} /> {PRIORITY[parsed.priority].label}
           </span>
         )}
-        {!due && !parsed.priority && (
+        {parsed.tags.map((name) => (
+          <TagChip key={name} name={name} color={tagColor(name)} />
+        ))}
+        {!due && !parsed.priority && !parsed.tags.length && (
           <span className="text-faint">
-            Try <span className="font-mono">@tomorrow</span> <span className="font-mono">@fri</span> <span className="font-mono">!high</span>
+            Try <span className="font-mono">@fri</span> <span className="font-mono">!high</span> <span className="font-mono">#tag</span>
           </span>
         )}
         <span className="ml-auto flex items-center gap-1 text-faint">

@@ -9,10 +9,12 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarClock,
+  Check,
   CheckCircle2,
   ChevronDown,
-  GripHorizontal,
   CircleDot,
+  Flag,
+  GripHorizontal,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -26,7 +28,9 @@ import { DueChip } from './Due';
 import { Logo, ThemePicker } from './TopBar';
 import { InstallButton, RemindersButton } from './Reminders';
 import { ChatButton } from './Chat';
-import { Button, cx, Dialog, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from './ui';
+import { ManageTagsDialog, TagChip, TagEditor, TagList, useTagColor } from './Tags';
+import { PRIORITY, PriorityIcon } from './TaskCard';
+import { Button, cx, Dialog, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger, Tip } from './ui';
 
 const ICONS = ['📋', '✅', '🚀', '💼', '🏠', '🎯', '💡', '📚', '🛠️', '🎨', '💰', '🌱', '✈️', '🏋️', '🧪', '📈', '🛒', '❤️', '🎓', '🧘', '📝', '🔒', '🌍', '🎵'];
 
@@ -55,8 +59,21 @@ export default function Home() {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [manageTags, setManageTags] = useState(false);
+  const homeTagFilter = useBoard((s) => s.homeTagFilter);
+  const tagColor = useTagColor();
 
   const active = useMemo(() => projects.filter((p) => !p.archived), [projects]);
+  // tags on active projects, most used first; selecting some shows projects with any of them
+  const projectTags = useMemo(() => {
+    const counts = new Map();
+    for (const p of active) for (const t of p.tags || []) counts.set(t, (counts.get(t) || 0) + 1);
+    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name]) => name);
+  }, [active]);
+  const shownProjects = useMemo(
+    () => (homeTagFilter.length ? active.filter((p) => (p.tags || []).some((t) => homeTagFilter.includes(t.toLowerCase()))) : active),
+    [active, homeTagFilter]
+  );
   const archived = useMemo(() => projects.filter((p) => p.archived), [projects]);
   const totals = useMemo(
     () =>
@@ -157,17 +174,37 @@ export default function Home() {
 
         {/* projects */}
         <section className="mt-12">
-          <SectionTitle title="Projects" hint={loaded ? plural(active.length, 'active project') : ''} />
+          <SectionTitle
+            title="Projects"
+            hint={loaded ? (homeTagFilter.length ? `${shownProjects.length} of ${plural(active.length, 'active project')}` : plural(active.length, 'active project')) : ''}
+          >
+            {projectTags.length > 0 && (
+              <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5" aria-label="Filter projects by tag">
+                {projectTags.map((name) => (
+                  <TagChip key={name} name={name} size="md" color={tagColor(name)} active={homeTagFilter.includes(name.toLowerCase())} onClick={() => useBoard.getState().toggleTagFilter(name, true)} />
+                ))}
+                {homeTagFilter.length > 0 && (
+                  <button type="button" onClick={() => useBoard.getState().clearTagFilter(true)} className="px-1 text-[12px] text-muted hover:text-fg">
+                    Clear
+                  </button>
+                )}
+                <button type="button" onClick={() => setManageTags(true)} className="px-1 text-[12px] text-faint hover:text-fg">
+                  Manage
+                </button>
+              </div>
+            )}
+          </SectionTitle>
+          <ManageTagsDialog open={manageTags} onClose={() => setManageTags(false)} />
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => (draggedAt.current = Date.now())} onDragEnd={onDragEnd}>
-            <SortableContext items={active.map((p) => p.id)} strategy={rectSortingStrategy}>
+            <SortableContext items={shownProjects.map((p) => p.id)} strategy={rectSortingStrategy}>
               <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(330px,1fr))]">
                 {!loaded && [0, 1, 2].map((i) => <div key={i} className="h-[270px] animate-pulse rounded-2xl bg-card/60" />)}
-                {active.map((p, i) => (
+                {shownProjects.map((p) => (
                   <SortableProjectCard
                     key={p.id}
                     project={p}
-                    isFirst={i === 0}
-                    isLast={i === active.length - 1}
+                    isFirst={active[0]?.id === p.id}
+                    isLast={active.at(-1)?.id === p.id}
                     onEdit={() => setEditing(p)}
                     onDelete={() => setDeleting(p)}
                     canArchive={active.length > 1}
@@ -204,11 +241,21 @@ export default function Home() {
   );
 }
 
-function SectionTitle({ title, hint }) {
+/** Priority badge on a project card: icon plus word, so it never relies on colour alone. */
+function ProjectPriority({ priority }) {
   return (
-    <div className="mb-4 flex items-baseline gap-3">
+    <span title={`${PRIORITY[priority].label} priority`} className="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-hover px-1.5 text-[11px] font-medium text-muted">
+      <PriorityIcon priority={priority} /> {PRIORITY[priority].label}
+    </span>
+  );
+}
+
+function SectionTitle({ title, hint, children }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-2">
       <h2 className="font-display text-[22px] text-fg">{title}</h2>
       {hint && <span className="text-[12.5px] text-faint">{hint}</span>}
+      {children}
     </div>
   );
 }
@@ -270,6 +317,7 @@ function SortableProjectCard({ justDragged, ...props }) {
 
 function ProjectCard({ project: p, isFirst, isLast, onEdit, onDelete, canArchive = true, sortable, onOpen }) {
   const { updateProject, shiftProject } = useBoard.getState();
+  const homeTagFilter = useBoard((s) => s.homeTagFilter);
   const s = p.stats;
   const columns = s.columns.filter((c) => !c.hidden || c.count > 0);
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
@@ -294,7 +342,7 @@ function ProjectCard({ project: p, isFirst, isLast, onEdit, onDelete, canArchive
         else sortable?.listeners?.onKeyDown?.(e);
       }}
       className={cx(
-        'group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-line bg-card p-5 shadow-card outline-none transition-[border-color,box-shadow,translate,opacity] duration-200 hover:border-line-strong hover:shadow-lift focus-visible:ring-2 focus-visible:ring-accent',
+        'group relative flex cursor-pointer flex-col overflow-clip rounded-2xl border border-line bg-card p-5 shadow-card outline-none transition-[border-color,box-shadow,translate,opacity] duration-200 hover:border-line-strong hover:shadow-lift focus-visible:ring-2 focus-visible:ring-accent',
         sortable && 'active:cursor-grabbing',
         dragging ? 'z-10 cursor-grabbing border-accent/50 shadow-lift' : 'hover:-translate-y-0.5'
       )}
@@ -311,8 +359,16 @@ function ProjectCard({ project: p, isFirst, isLast, onEdit, onDelete, canArchive
           {p.icon}
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="font-display truncate text-[19px] leading-tight text-fg">{p.name}</h3>
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="font-display truncate text-[19px] leading-tight text-fg">{p.name}</h3>
+            {p.priority !== 'none' && <ProjectPriority priority={p.priority} />}
+          </div>
           <p className="mt-1 line-clamp-1 text-[12.5px] text-muted">{p.description || `Updated ${ago(s.lastActivity)}`}</p>
+          {p.tags?.length > 0 && (
+            <div className="mt-1.5">
+              <TagList tags={p.tags} max={4} activeNames={homeTagFilter} onPick={p.archived ? undefined : (name) => useBoard.getState().toggleTagFilter(name, true)} />
+            </div>
+          )}
         </div>
         <div onClick={(e) => e.stopPropagation()} className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 has-[[data-state=open]]:opacity-100">
           <Menu>
@@ -325,6 +381,20 @@ function ProjectCard({ project: p, isFirst, isLast, onEdit, onDelete, canArchive
               <MenuItem onSelect={onEdit}>
                 <Pencil /> Edit project
               </MenuItem>
+              <MenuSub>
+                <MenuSubTrigger>
+                  <Flag /> Priority
+                </MenuSubTrigger>
+                <MenuSubContent>
+                  {Object.entries(PRIORITY).map(([key, pr]) => (
+                    <MenuItem key={key} onSelect={() => updateProject(p.id, { priority: key }).then(() => useBoard.getState().loadHome(), () => {})}>
+                      <span className="flex size-4 items-center justify-center">{key === 'none' ? null : <PriorityIcon priority={key} />}</span>
+                      {key === 'none' ? 'No priority' : pr.label}
+                      {p.priority === key && <Check className="ml-auto" />}
+                    </MenuItem>
+                  ))}
+                </MenuSubContent>
+              </MenuSub>
               {!p.archived && (
                 <>
                   <MenuItem disabled={isFirst} onSelect={() => shiftProject(p.id, -1)}>
@@ -461,6 +531,8 @@ function ProjectDialog({ open, project, onClose, projects = [] }) {
   const [color, setColor] = useState('violet');
   const [description, setDescription] = useState('');
   const [copyFrom, setCopyFrom] = useState('');
+  const [tags, setTags] = useState([]);
+  const [priority, setPriority] = useState('none');
   const editing = !!project;
 
   useEffect(() => {
@@ -470,17 +542,19 @@ function ProjectDialog({ open, project, onClose, projects = [] }) {
     setColor(project?.color ?? COLUMN_COLORS[1 + Math.floor(Math.random() * (COLUMN_COLORS.length - 1))]);
     setDescription(project?.description ?? '');
     setCopyFrom('');
+    setTags(project?.tags ?? []);
+    setPriority(project?.priority ?? 'none');
   }, [open, project]);
 
   const submit = async () => {
     if (!name.trim()) return;
     const { createProject, updateProject, loadHome } = useBoard.getState();
     if (editing) {
-      await updateProject(project.id, { name: name.trim(), icon, color, description: description.trim() });
+      await updateProject(project.id, { name: name.trim(), icon, color, description: description.trim(), priority, tags });
       loadHome();
       onClose();
     } else {
-      const p = await createProject({ name: name.trim(), icon, color, description: description.trim(), copyColumnsFrom: copyFrom || undefined });
+      const p = await createProject({ name: name.trim(), icon, color, description: description.trim(), priority, tags, copyColumnsFrom: copyFrom || undefined });
       onClose();
       navigate(projectPath(p.id));
     }
@@ -549,6 +623,29 @@ function ProjectDialog({ open, project, onClose, projects = [] }) {
             onChange={(e) => setDescription(e.target.value)}
             className="w-full rounded-xl border border-line bg-bg/50 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
           />
+        </Field>
+
+        <Field label="Priority">
+          <div className="inline-flex rounded-lg border border-line p-0.5" role="radiogroup" aria-label="Priority">
+            {Object.entries(PRIORITY).map(([key, pr]) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={priority === key}
+                title={key === 'none' ? 'No priority' : pr.label}
+                onClick={() => setPriority(key)}
+                className={cx('inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] transition-colors', priority === key ? 'bg-accent-soft text-fg shadow-sm' : 'text-muted hover:text-fg')}
+              >
+                {key === 'none' ? 'None' : <PriorityIcon priority={key} />}
+                {key !== 'none' && <span>{pr.label}</span>}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="Tags">
+          <TagEditor value={tags} onChange={setTags} placeholder="e.g. work, personal, Q4" />
         </Field>
 
         {!editing && projects.length > 0 && (

@@ -59,14 +59,21 @@ function parseDueToken(tok) {
 }
 
 /**
- * Quick-add syntax: "Write report @fri !high"
+ * Quick-add syntax: "Write report @fri !high #finance"
  *   @today @tomorrow @mon..@sun @nextweek @3d @2w @2026-10-12 @10/12   → deadline
  *   !low !med !high !urgent                                             → priority
+ *   #design #q4-launch                                                  → tags (#12 stays: it looks like a task number)
  */
 export function parseQuickAdd(input) {
   let dueAt = null;
   let priority = null;
+  const tags = [];
   const title = input
+    .replace(/(^|\s)#([^\s#,]+)/g, (whole, sp, tok) => {
+      if (/^\d+$/.test(tok) || tok.length > 40) return whole;
+      if (!tags.some((t) => t.toLowerCase() === tok.toLowerCase())) tags.push(tok);
+      return sp;
+    })
     .replace(/(^|\s)@(\S+)/g, (whole, sp, tok) => {
       const d = parseDueToken(tok);
       if (!d) return whole;
@@ -81,5 +88,5 @@ export function parseQuickAdd(input) {
     })
     .replace(/\s+/g, ' ')
     .trim();
-  return { title, dueAt, priority };
+  return { title, dueAt, priority, tags };
 }

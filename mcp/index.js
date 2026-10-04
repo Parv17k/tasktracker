@@ -6,6 +6,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import * as store from '../server/db.js';
 import { dueInfo, formatDuration } from '../shared/due.js';
+import { changeTags } from '../shared/tags.js';
 
 const server = new McpServer({ name: 'tasktracker', version: '1.0.0' });
 
@@ -41,6 +42,7 @@ function taskLine(t) {
   const due = !isDoneColumn(t.columnId) && dueInfo(t.dueAt, t.dueHasTime);
   if (due) parts.push(`(${due.label})`);
   if (t.subtasks.length) parts.push(`{${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length} subtasks}`);
+  if (t.tags?.length) parts.push(t.tags.map((g) => `#${g}`).join(' '));
   if (t.timerStartedAt) parts.push('⏱ running');
   if (t.archived) parts.push('(archived)');
   return parts.join(' ');
@@ -54,6 +56,7 @@ function taskDetail(t) {
     `project: ${projectOf(t.columnId)?.name ?? '?'}`,
     `column: ${columnName(t.columnId)}${t.archived ? ' (archived)' : ''}`,
     `priority: ${t.priority}`,
+    `tags: ${t.tags?.length ? t.tags.join(', ') : 'none'}`,
     `due: ${due ? `${t.dueAt} — ${due.label}` : 'none'}`,
     `time spent: ${formatDuration(t.timeSpent + running)}${t.timerStartedAt ? ' (timer running)' : ''}`,
   ];
@@ -84,6 +87,7 @@ const projectRef = z
   .describe('Project name (fuzzy, e.g. "website") or id. Defaults to the first project on the home page.');
 const priority = z.enum(['none', 'low', 'medium', 'high', 'urgent']);
 const due = z.string().describe('Deadline as YYYY-MM-DD (whole day) or an ISO datetime, e.g. 2026-10-05T17:00');
+const tagList = z.array(z.string().min(1)).describe('Tag names, e.g. ["design", "q4"]. New tags are created automatically.');
 
 // ---------- tools ----------
 
@@ -119,7 +123,8 @@ server.registerTool(
     inputSchema: {
       project: projectRef.optional().describe('Limit to one project (name or id). Omit to search every project.'),
       column: columnRef.optional().describe('Column name or id (needs project when using a name)'),
-      query: z.string().optional().describe('Text to match in title, description, note or subtasks'),
+      query: z.string().optional().describe('Text to match in title, description, note, subtasks or tags'),
+      tag: z.string().optional().describe('Only tasks with this tag (case-insensitive)'),
       due_within_days: z.number().min(0).optional().describe('Only open tasks due within this many days (includes overdue)'),
       overdue: z.boolean().optional().describe('Only open tasks that are past their deadline'),
       include_archived: z.boolean().optional(),
@@ -127,12 +132,13 @@ server.registerTool(
     },
     annotations: { readOnlyHint: true },
   },
-  tool(({ project, column, query, due_within_days, overdue, include_archived, limit }) => {
+  tool(({ project, column, query, tag, due_within_days, overdue, include_archived, limit }) => {
     const projectId = project != null ? store.resolveProject(project).id : undefined;
     const tasks = store.listTasks({
       projectId,
       columnId: column != null ? store.resolveColumn(column, projectId).id : undefined,
       query,
+      tag,
       dueWithinDays: due_within_days,
       overdue,
       archived: include_archived ? 'all' : false,
@@ -175,9 +181,10 @@ server.registerTool(
       priority: priority.optional(),
       due: due.optional(),
       subtasks: z.array(z.string()).optional().describe('Checklist items to create with the task'),
+      tags: tagList.optional(),
     },
   },
-  tool(({ title, project, description, note, column, priority, due, subtasks }) => {
+  tool(({ title, project, description, note, column, priority, due, subtasks, tags }) => {
     const projectId = store.resolveProject(project).id;
     const t = store.createTask({
       projectId,
@@ -187,6 +194,7 @@ server.registerTool(
       priority,
       dueAt: due,
       subtasks,
+      tags,
       columnId: column != null ? store.resolveColumn(column, projectId).id : undefined,
     });
     return text(`Created in ${projectOf(t.columnId)?.name} / ${columnName(t.columnId)}:\n${taskDetail(t)}`);
@@ -197,7 +205,8 @@ server.registerTool(
   'update_task',
   {
     title: 'Update task',
-    description: 'Edit task fields. Only provided fields change. Pass due: "" to clear the deadline. To add to the note without overwriting, use append_note.',
+    description:
+      'Edit task fields. Only provided fields change. Pass due: "" to clear the deadline. To add to the note without overwriting, use append_note. Use add_tags/remove_tags to change some tags, or tags to replace them all.',
     inputSchema: {
       id: taskId,
       title: z.string().min(1).optional(),
@@ -205,9 +214,16 @@ server.registerTool(
       note: z.string().optional().describe('Replaces the whole note'),
       priority: priority.optional(),
       due: z.string().optional().describe('YYYY-MM-DD or ISO datetime; empty string clears it'),
+      tags: tagList.optional().describe('Replaces all tags ([] removes them)'),
+      add_tags: tagList.optional(),
+      remove_tags: z.array(z.string()).optional(),
     },
   },
-  tool(({ id, due, ...rest }) => text(`Updated:\n${taskDetail(store.updateTask(id, { ...rest, ...(due !== undefined ? { dueAt: due } : {}) }))}`))
+  tool(({ id, due, tags, add_tags, remove_tags, ...rest }) => {
+    const patch = { ...rest, ...(due !== undefined ? { dueAt: due } : {}) };
+    if (tags !== undefined || add_tags || remove_tags) patch.tags = changeTags(tags ?? store.getTask(id).tags, { add: add_tags, remove: remove_tags });
+    return text(`Updated:\n${taskDetail(store.updateTask(id, patch))}`);
+  })
 );
 
 server.registerTool(
@@ -338,7 +354,9 @@ server.registerTool(
           const s = p.stats;
           const cols = s.columns.filter((c) => !c.hidden).map((c) => `${c.name} ${c.count}`).join(' · ');
           const flags = [s.overdue && `${s.overdue} overdue`, s.dueWeek && `${s.dueWeek} due this week`].filter(Boolean).join(', ');
-          return `${p.icon} ${p.name} (id ${p.id})${i === 0 && !p.archived ? ' [default]' : ''}${p.archived ? ' [archived]' : ''} — ${s.total} task(s): ${cols}${flags ? ` — ${flags}` : ''}`;
+          const tags = p.tags?.length ? ` ${p.tags.map((g) => `#${g}`).join(' ')}` : '';
+          const prio = p.priority !== 'none' ? ` [${p.priority} priority]` : '';
+          return `${p.icon} ${p.name} (id ${p.id})${i === 0 && !p.archived ? ' [default]' : ''}${p.archived ? ' [archived]' : ''}${prio}${tags} — ${s.total} task(s): ${cols}${flags ? ` — ${flags}` : ''}`;
         })
         .join('\n')
     );
@@ -354,11 +372,53 @@ server.registerTool(
       name: z.string().min(1),
       icon: z.string().optional().describe('A single emoji, e.g. 🚀'),
       description: z.string().optional(),
+      priority: priority.optional(),
+      tags: tagList.optional(),
     },
   },
-  tool(({ name, icon, description }) => {
-    const p = store.createProject({ name, icon, description });
-    return text(`Created project ${p.icon} ${p.name} (id ${p.id}).`);
+  tool(({ name, icon, description, priority, tags }) => {
+    const p = store.createProject({ name, icon, description, priority, tags });
+    return text(`Created project ${p.icon} ${p.name} (id ${p.id})${p.tags.length ? ` tagged ${p.tags.join(', ')}` : ''}.`);
+  })
+);
+
+server.registerTool(
+  'update_project',
+  {
+    title: 'Update project',
+    description: 'Rename a project or change its icon, description, priority or tags. Only provided fields change.',
+    inputSchema: {
+      project: projectRef,
+      name: z.string().min(1).optional(),
+      icon: z.string().optional(),
+      description: z.string().optional(),
+      priority: priority.optional(),
+      tags: tagList.optional().describe('Replaces all tags ([] removes them)'),
+      add_tags: tagList.optional(),
+      remove_tags: z.array(z.string()).optional(),
+    },
+  },
+  tool(({ project, tags, add_tags, remove_tags, ...rest }) => {
+    const current = store.resolveProject(project);
+    const patch = { ...rest };
+    if (tags !== undefined || add_tags || remove_tags) patch.tags = changeTags(tags ?? current.tags, { add: add_tags, remove: remove_tags });
+    const p = store.updateProject(current.id, patch);
+    return text(`Updated project ${p.icon} ${p.name} (id ${p.id}). Priority: ${p.priority}. Tags: ${p.tags.length ? p.tags.join(', ') : 'none'}.`);
+  })
+);
+
+server.registerTool(
+  'list_tags',
+  {
+    title: 'List tags',
+    description: 'Every tag with how many active tasks and projects use it. Filter tasks by tag with list_tasks.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  tool(() => {
+    const tags = store.listTags();
+    if (!tags.length) return text('No tags yet.');
+    return text(tags.map((g) => `- #${g.name} — ${g.tasks} task(s), ${g.projects} project(s)`).join('\n'));
   })
 );
 
