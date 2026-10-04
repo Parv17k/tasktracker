@@ -1,8 +1,13 @@
-// "Ask about your tasks": a read-only chat with any OpenAI-compatible provider.
-// Each request carries a compact snapshot of the board, so it works with providers
-// that have no tool calling. The API key stays on this server.
+// "Ask about your tasks": chat with any OpenAI-compatible provider about the board.
+// Each request carries a compact snapshot of the board, and the assistant proposes changes
+// as a JSON block the user approves (see actions.js), so it works without tool calling.
+// The API key stays on this server.
 import * as store from './db.js';
 import { dueInfo, formatDuration } from '../shared/due.js';
+import { MAX_ACTIONS } from './actions.js';
+
+/** Fence label for the block of proposed changes at the end of a reply (parsed by the web app). */
+export const ACTIONS_FENCE = 'tasktracker-actions';
 
 const CONTEXT_BUDGET = 60000; // characters of board snapshot per request
 const MAX_TURNS = 24;
@@ -86,7 +91,27 @@ export function systemPrompt(context) {
 
 - Be concise and practical. Prefer short bullet lists. Mention tasks as "#id Title".
 - Base answers on the snapshot. If it doesn't contain the answer, say so.
-- You cannot change anything yourself. If the user wants tasks created, moved or edited, say exactly what to change so they can do it on the board.
+
+# Proposing changes
+You can propose changes to the board. The user sees them as an approval card and nothing changes until they approve.
+Only propose changes when the user asks for them or clearly agrees to a suggestion. To propose, briefly say what you suggest, then end your reply with exactly one block like this:
+
+\`\`\`${ACTIONS_FENCE}
+[{"type": "move_task", "task": 12, "column": "In Progress"}]
+\`\`\`
+
+The block is a JSON array (at most ${MAX_ACTIONS} items) using these types:
+- {"type":"create_task","project":"<name>","column":"<name, optional>","title":"...","description":"...","priority":"low|medium|high|urgent","due":"YYYY-MM-DD or YYYY-MM-DDTHH:MM","subtasks":["..."]}
+- {"type":"update_task","task":<id>, then any of "title", "description", "priority", "due" (use "" to remove the deadline)}
+- {"type":"move_task","task":<id>,"column":"<column name in that task's project>"}
+- {"type":"complete_task","task":<id>}
+- {"type":"archive_task","task":<id>}
+- {"type":"add_subtasks","task":<id>,"subtasks":["..."]}
+- {"type":"check_subtask","task":<id>,"subtask":"<subtask title>","done":true}
+- {"type":"add_note","task":<id>,"text":"..."}
+- {"type":"create_project","name":"...","icon":"<one emoji>","description":"..."}
+
+Rules: use task ids and names exactly as in the snapshot; dates are in the user's local time; you cannot delete anything (archive instead). Never say a change is done: the user approves it. Messages in brackets like "[Changes applied: …]" tell you what the user approved.
 
 # Snapshot
 ${context}`;
@@ -107,40 +132,104 @@ function providerHeaders(apiKey) {
   return { 'content-type': 'application/json', ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) };
 }
 
-async function providerError(res) {
-  const text = await res.text().catch(() => '');
-  let msg = text;
-  try {
-    const j = JSON.parse(text);
-    msg = j.error?.message || (typeof j.error === 'string' ? j.error : '') || j.message || text;
-  } catch {}
-  const hint = res.status === 401 || res.status === 403 ? ' Check the API key.' : res.status === 404 ? ' Check the base URL and model name.' : '';
-  return new store.AppError(res.status === 401 || res.status === 403 ? 401 : 502, `Provider replied ${res.status}: ${clip(msg, 300) || res.statusText}.${hint}`);
+// ---------- errors people can act on ----------
+// Providers fail in many shapes (JSON, HTML error pages, dropped sockets). Users see one plain
+// sentence and a `kind` the UI turns into a next step; the raw detail only goes to the server log.
+
+/** kind: setup | auth | not_found | bad_url | rate_limit | too_long | bad_request | down | timeout | unreachable */
+export class ChatError extends store.AppError {
+  constructor(status, kind, message, detail = '') {
+    super(status, message);
+    this.kind = kind;
+    this.detail = detail;
+  }
 }
 
-function unreachable(err, baseUrl) {
-  if (err.name === 'AbortError' || err.name === 'TimeoutError') return new store.AppError(504, 'The provider took too long to respond');
-  return new store.AppError(502, `Could not reach ${baseUrl} (${err.cause?.code || err.message})`);
+const hostOf = (url) => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'your AI provider';
+  }
+};
+
+/** The provider's own message, only when it's short, human text (never an HTML page). */
+function providerMessage(text) {
+  try {
+    const j = JSON.parse(text);
+    const m = j.error?.message || (typeof j.error === 'string' ? j.error : '') || j.message || '';
+    return typeof m === 'string' && m.length <= 200 && !/[<>{}]/.test(m) ? m.trim() : '';
+  } catch {
+    return '';
+  }
 }
+
+export async function providerError(res, baseUrl) {
+  const raw = await res.text().catch(() => '');
+  const said = providerMessage(raw);
+  const s = res.status;
+  const detail = `provider ${s}: ${clip(raw, 500)}`;
+  if (s === 401 || s === 403) return new ChatError(401, 'auth', 'Your AI provider didn’t accept the API key. Open settings and check that the key is correct.', detail);
+  if (s === 404) return new ChatError(502, 'not_found', 'Your AI provider couldn’t find that model. Open settings and check the base URL and model name.', detail);
+  if (s === 429) return new ChatError(429, 'rate_limit', 'Your AI provider is busy, or you’ve reached its usage limit. Wait a minute and try again.', detail);
+  if (s === 413 || (s === 400 && /context|token|too long|length/i.test(said))) {
+    return new ChatError(502, 'too_long', 'This conversation is too long for the model. Start a new conversation and ask again.', detail);
+  }
+  if (s >= 400 && s < 500) {
+    return new ChatError(502, 'bad_request', `Your AI provider couldn’t handle this request${said ? `: “${said}”` : '.'} Try asking differently, or check the model in settings.`, detail);
+  }
+  return new ChatError(502, 'down', `Your AI provider (${hostOf(baseUrl)}) isn’t responding right now. It may be down or restarting. Try again in a few minutes.`, detail);
+}
+
+export function unreachable(err, baseUrl) {
+  const host = hostOf(baseUrl);
+  const code = err.cause?.code || err.code || '';
+  const detail = `${err.name}: ${code || err.message}`;
+  if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+    return new ChatError(504, 'timeout', 'Your AI provider took too long to answer. It may be overloaded. Try again in a moment.', detail);
+  }
+  if (code === 'ECONNREFUSED') {
+    return new ChatError(502, 'unreachable', `Can’t connect to ${host}. If the model runs on this computer (like Ollama or LM Studio), make sure it’s open and running.`, detail);
+  }
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
+    return new ChatError(502, 'unreachable', `Can’t find ${host}. Check your internet connection and the base URL in settings.`, detail);
+  }
+  if (/CERT|SSL|TLS/i.test(code)) {
+    return new ChatError(502, 'bad_url', `Couldn’t make a secure connection to ${host}. Check the base URL in settings.`, detail);
+  }
+  return new ChatError(502, 'unreachable', `Can’t reach ${host}. Check your internet connection and try again.`, detail);
+}
+
+// marks an answer that stopped part-way; the app shows it as a notice under the partial reply
+export const CUT_OFF = '\n\n⚠️ The answer was cut off because the connection to your AI provider dropped. Try asking again.';
+
+const notAnApi = (baseUrl, detail) =>
+  new ChatError(502, 'bad_url', `${hostOf(baseUrl)} answered with a web page instead of an AI response. Check the base URL in settings; it usually ends in /v1.`, detail);
 
 function requireConfig() {
   const cfg = store.getLlmConfig();
-  if (!cfg.baseUrl || !cfg.model) throw new store.AppError(400, 'Set up a chat provider first');
+  if (!cfg.baseUrl || !cfg.model) throw new ChatError(400, 'setup', 'Set up an AI provider first. Open settings to add one.');
   return cfg;
 }
 
 /** Model ids offered by the provider (also a quick connection test). */
 export async function listModels() {
   const cfg = store.getLlmConfig();
-  if (!cfg.baseUrl) throw new store.AppError(400, 'Set a base URL first');
+  if (!cfg.baseUrl) throw new ChatError(400, 'setup', 'Enter the base URL first.');
   let res;
   try {
     res = await fetch(`${cfg.baseUrl}/models`, { headers: providerHeaders(cfg.apiKey), signal: AbortSignal.timeout(15000) });
   } catch (err) {
     throw unreachable(err, cfg.baseUrl);
   }
-  if (!res.ok) throw await providerError(res);
-  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw await providerError(res, cfg.baseUrl);
+  const text = await res.text().catch(() => '');
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw notAnApi(cfg.baseUrl, `models: ${clip(text, 300)}`);
+  }
   return (body.data || body.models || []).map((m) => m.id || m.name).filter(Boolean).sort();
 }
 
@@ -170,15 +259,24 @@ export async function streamChat({ messages, projectId, signal, onStart, write }
   } finally {
     clearTimeout(startup);
   }
-  if (!res.ok) throw await providerError(res);
-  onStart();
+  if (!res.ok) throw await providerError(res, cfg.baseUrl);
 
-  // a provider that ignores `stream` answers with one JSON object
+  // a provider that ignores `stream` answers with one JSON object; a wrong URL often answers with a web page
   if (!res.headers.get('content-type')?.includes('text/event-stream')) {
-    const j = await res.json().catch(() => null);
-    write(j?.choices?.[0]?.message?.content ?? '');
+    const text = await res.text().catch(() => '');
+    let j;
+    try {
+      j = JSON.parse(text);
+    } catch {
+      throw notAnApi(cfg.baseUrl, `chat: ${clip(text, 300)}`);
+    }
+    const content = j?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string') throw new ChatError(502, 'bad_url', 'Your AI provider sent a reply this app couldn’t read. Check that the base URL points to an OpenAI-compatible API.', `chat: ${clip(text, 300)}`);
+    onStart();
+    write(content);
     return;
   }
+  onStart();
 
   const decoder = new TextDecoder();
   let buffer = '';
@@ -191,15 +289,24 @@ export async function streamChat({ messages, projectId, signal, onStart, write }
         if (!line.startsWith('data:')) continue;
         const data = line.slice(5).trim();
         if (data === '[DONE]') return;
+        let j;
         try {
-          const j = JSON.parse(data);
-          if (j.error) return write(`\n\n⚠️ ${j.error.message || j.error}`);
-          const text = j.choices?.[0]?.delta?.content;
-          if (text) write(text);
-        } catch {}
+          j = JSON.parse(data);
+        } catch {
+          continue;
+        }
+        if (j.error) {
+          console.error('chat stream error:', clip(JSON.stringify(j.error), 300));
+          return write(CUT_OFF);
+        }
+        const text = j.choices?.[0]?.delta?.content;
+        if (text) write(text);
       }
     }
   } catch (err) {
-    if (!signal.aborted) write(`\n\n⚠️ The connection to the provider dropped (${err.message}).`);
+    if (!signal.aborted) {
+      console.error('chat stream dropped:', err.message);
+      write(CUT_OFF);
+    }
   }
 }

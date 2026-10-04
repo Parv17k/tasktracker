@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
-import { ArrowLeft, ArrowUp, KeyRound, Loader2, RotateCcw, Settings2, Sparkles, Square } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowUp, Check, KeyRound, Loader2, RotateCcw, Settings2, Sparkles, Square, WandSparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBoard } from '../store';
 import { Button, cx, IconButton, Sheet, Tip } from './ui';
@@ -18,56 +18,151 @@ const SUGGESTIONS = {
   project: ['Summarize this project', 'What is overdue or due soon here?', 'What should I work on next?'],
 };
 
-const request = (method, url, body) =>
-  fetch(url, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined }).then(async (r) => {
-    const data = await r.json().catch(() => null);
-    if (!r.ok) throw new Error(data?.error || `Request failed (${r.status})`);
-    return data;
-  });
+// Errors from this app's own server already read as plain sentences. Anything else
+// (the server is stopped, the network dropped) gets a plain sentence here.
+const OFFLINE = 'Task Tracker’s server isn’t responding. Make sure it’s still running (npm start), then try again.';
+
+async function request(method, url, body) {
+  let r;
+  try {
+    r = await fetch(url, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  } catch {
+    throw Object.assign(new Error(OFFLINE), { kind: 'offline' });
+  }
+  const data = await r.json().catch(() => null);
+  if (!r.ok) throw Object.assign(new Error(data?.error || OFFLINE), { kind: data?.kind || (data ? undefined : 'offline') });
+  return data;
+}
+
+/** The changes block the assistant appends to a reply (the server's ACTIONS_FENCE). */
+const FENCE = '```tasktracker-actions';
+
+/** Splits a reply into visible text and proposed actions. While streaming, an unfinished block is hidden. */
+function splitReply(content) {
+  const at = content.indexOf(FENCE);
+  if (at < 0) return { text: content, actions: null, pending: false };
+  const text = content.slice(0, at).trimEnd();
+  const rest = content.slice(at + FENCE.length);
+  const end = rest.indexOf('```');
+  if (end < 0) return { text, actions: null, pending: true };
+  try {
+    const parsed = JSON.parse(rest.slice(0, end));
+    const actions = Array.isArray(parsed) ? parsed : [parsed];
+    return { text, actions: actions.length ? actions : null, pending: false, unreadable: false };
+  } catch {
+    return { text, actions: null, pending: false, unreadable: true };
+  }
+}
 
 // conversation lives outside the board store so it survives moving between pages
 export const useChat = create((set, get) => ({
   open: false,
-  messages: [], // { role: 'user' | 'assistant', content, error? }
+  // { role: 'user' | 'assistant', content, error?: { message, kind }, proposal?: { status, items?, error?, applied? } }
+  messages: [],
   streaming: false,
   controller: null,
 
   async send(text) {
+    // failed turns are left out of what the model sees; a decision on proposed changes is passed on
     const history = [...get().messages.filter((m) => !m.error), { role: 'user', content: text }];
     const controller = new AbortController();
     set({ messages: [...history, { role: 'assistant', content: '' }], streaming: true, controller });
     const patchLast = (fn) => set((s) => ({ messages: [...s.messages.slice(0, -1), fn(s.messages.at(-1))] }));
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: history, projectId: useBoard.getState().projectId }),
-        signal: controller.signal,
-      });
+      let res;
+      try {
+        res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ messages: toProvider(history), projectId: useBoard.getState().projectId }),
+          signal: controller.signal,
+        });
+      } catch (err) {
+        if (err.name === 'AbortError') throw err;
+        throw Object.assign(new Error(OFFLINE), { kind: 'offline' });
+      }
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error || `Request failed (${res.status})`);
+        throw Object.assign(new Error(data?.error || OFFLINE), { kind: data?.kind || 'offline' });
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        const text = decoder.decode(value, { stream: true });
-        patchLast((m) => ({ ...m, content: m.content + text }));
+        const chunk = decoder.decode(value, { stream: true });
+        patchLast((m) => ({ ...m, content: m.content + chunk }));
       }
-      patchLast((m) => (m.content ? m : { ...m, content: 'The model returned an empty reply.', error: true }));
+      const last = get().messages.at(-1);
+      if (!last.content.trim()) patchLast((m) => ({ ...m, error: { message: 'Your AI provider sent back an empty answer. Try asking again, or choose a different model in settings.', kind: 'empty' } }));
+      else get().review(get().messages.length - 1);
     } catch (err) {
-      if (err.name === 'AbortError') patchLast((m) => (m.content ? m : { ...m, content: 'Stopped.', error: true }));
-      else patchLast((m) => ({ ...m, content: m.content ? `${m.content}\n\n⚠️ ${err.message}` : err.message, error: !m.content }));
+      if (err.name === 'AbortError') patchLast((m) => (m.content ? m : { ...m, error: { message: 'Stopped.', kind: 'stopped' } }));
+      else if (get().messages.at(-1).content) patchLast((m) => ({ ...m, content: `${m.content}\n\n⚠️ ${err.message}` }));
+      else patchLast((m) => ({ ...m, error: { message: err.message, kind: err.kind } }));
     } finally {
       set({ streaming: false, controller: null });
+    }
+  },
+
+  /** Ask the server to check and describe the changes proposed in message `i`. */
+  async review(i) {
+    const { actions, unreadable } = splitReply(get().messages[i].content);
+    const patch = (proposal) => set((s) => ({ messages: s.messages.map((m, j) => (j === i ? { ...m, proposal: { ...m.proposal, ...proposal } } : m)) }));
+    if (unreadable) return patch({ status: 'unreadable', actions: null });
+    if (!actions) return;
+    patch({ status: 'checking', actions });
+    try {
+      const { items } = await request('POST', '/api/chat/actions/preview', { actions });
+      patch({ status: 'pending', items, selected: items.map((it) => it.ok) });
+    } catch (err) {
+      patch({ status: 'invalid', error: err.message });
+    }
+  },
+
+  toggle(i, k) {
+    set((s) => ({ messages: s.messages.map((m, j) => (j === i ? { ...m, proposal: { ...m.proposal, selected: m.proposal.selected.map((v, n) => (n === k ? !v : v)) } } : m)) }));
+  },
+
+  async decide(i, approve) {
+    const m = get().messages[i];
+    const p = m.proposal;
+    const patch = (proposal) => set((s) => ({ messages: s.messages.map((x, j) => (j === i ? { ...x, proposal: { ...x.proposal, ...proposal } } : x)) }));
+    if (!approve) return patch({ status: 'dismissed' });
+    const chosen = p.actions.filter((_, k) => p.selected[k]);
+    if (!chosen.length) return patch({ status: 'dismissed' });
+    patch({ status: 'applying', error: null });
+    try {
+      const { applied } = await request('POST', '/api/chat/actions/apply', { actions: chosen });
+      patch({ status: 'applied', applied });
+      toast.success(applied.length === 1 ? 'Change applied' : `${applied.length} changes applied`);
+      // refresh what's on screen (the live-update stream also does this, but not for the same tab)
+      const b = useBoard.getState();
+      if (b.projectId != null) b.load();
+      else b.loadHome?.();
+    } catch (err) {
+      patch({ status: 'pending', error: err.message });
     }
   },
 
   stop: () => get().controller?.abort(),
   clear: () => (get().controller?.abort(), set({ messages: [] })),
 }));
+
+/** What the model sees: plain text, plus a note on what happened to changes it proposed. */
+function toProvider(messages) {
+  return messages.map((m) => {
+    const p = m.proposal;
+    if (m.role !== 'assistant' || !p) return { role: m.role, content: m.content };
+    const outcome =
+      p.status === 'applied'
+        ? `[Changes applied: ${p.applied.map((a) => `${a.verb} ${a.summary}`).join('; ')}]`
+        : p.status === 'dismissed'
+          ? '[The user dismissed these changes. Nothing was changed.]'
+          : '[These changes were not applied.]';
+    return { role: 'assistant', content: `${m.content}\n\n${outcome}` };
+  });
+}
 
 export function ChatButton() {
   return (
@@ -139,7 +234,7 @@ export function ChatSheet() {
           onBack={settings.configured ? () => setEditing(false) : null}
         />
       ) : (
-        <Conversation model={settings.model} host={host} />
+        <Conversation model={settings.model} host={host} onSettings={() => setEditing(true)} />
       )}
     </Sheet>
   );
@@ -147,7 +242,7 @@ export function ChatSheet() {
 
 // ---------- conversation ----------
 
-function Conversation({ model, host }) {
+function Conversation({ model, host, onSettings }) {
   const messages = useChat((s) => s.messages);
   const streaming = useChat((s) => s.streaming);
   const onProject = useBoard((s) => s.projectId != null);
@@ -185,13 +280,9 @@ function Conversation({ model, host }) {
                   {m.content}
                 </div>
               ) : m.error ? (
-                <p key={i} className="rounded-xl border border-danger/30 bg-danger/8 px-3.5 py-2.5 text-[13px] text-danger">
-                  {m.content}
-                </p>
+                <ErrorNotice key={i} error={m.error} onSettings={onSettings} />
               ) : (
-                <div key={i} className="text-[13.5px] leading-relaxed text-fg">
-                  {m.content ? <Markdown text={m.content} /> : <Loader2 className="size-4 animate-spin text-faint" />}
-                </div>
+                <AssistantMessage key={i} index={i} message={m} streaming={streaming && i === messages.length - 1} />
               )
             )}
           </div>
@@ -199,9 +290,153 @@ function Conversation({ model, host }) {
       </div>
       <Composer streaming={streaming} />
       <p className="px-5 pb-3 text-center text-[11px] text-faint">
-        {model} via {host} · your tasks are shared with it when you ask · read-only
+        {model} via {host} · your tasks are shared with it when you ask · changes need your OK
       </p>
     </div>
+  );
+}
+
+const ERROR_TITLES = {
+  setup: 'Set up an AI provider',
+  auth: 'API key not accepted',
+  not_found: 'Model not found',
+  bad_url: 'Check the base URL',
+  rate_limit: 'Provider is busy',
+  too_long: 'Conversation too long',
+  down: 'AI provider is unavailable',
+  timeout: 'No answer in time',
+  unreachable: 'Can’t reach the AI provider',
+  offline: 'Task Tracker isn’t responding',
+  empty: 'Empty answer',
+};
+const FIX_IN_SETTINGS = ['setup', 'auth', 'not_found', 'bad_url'];
+
+/** A failed reply: a plain title, a plain explanation, and the obvious next step. */
+function ErrorNotice({ error, onSettings }) {
+  if (error.kind === 'stopped') return <p className="text-[12.5px] italic text-faint">Stopped.</p>;
+  const retry = () => {
+    const s = useChat.getState();
+    const msgs = s.messages;
+    const lastUser = [...msgs].reverse().find((m) => m.role === 'user');
+    if (!lastUser) return;
+    // drop the failed turn and ask the same question again
+    useChat.setState({ messages: msgs.slice(0, msgs.lastIndexOf(lastUser)) });
+    s.send(lastUser.content);
+  };
+  return (
+    <div role="alert" className="rounded-xl border border-danger/25 bg-danger/6 px-3.5 py-3">
+      <div className="flex items-center gap-2 text-[13px] font-medium text-danger">
+        <AlertCircle className="size-4 shrink-0" /> {ERROR_TITLES[error.kind] || 'Something went wrong'}
+      </div>
+      <p className="mt-1 text-[13px] leading-relaxed text-fg">{error.message}</p>
+      <div className="mt-2.5 flex gap-2">
+        {FIX_IN_SETTINGS.includes(error.kind) ? (
+          <Button size="sm" variant="outline" onClick={onSettings}>
+            <Settings2 className="size-3.5" /> Open settings
+          </Button>
+        ) : (
+          <>
+            {error.kind !== 'too_long' && (
+              <Button size="sm" variant="outline" onClick={retry}>
+                <RotateCcw className="size-3.5" /> Try again
+              </Button>
+            )}
+            {error.kind === 'too_long' && (
+              <Button size="sm" variant="outline" onClick={() => useChat.getState().clear()}>
+                New conversation
+              </Button>
+            )}
+            {error.kind !== 'offline' && (
+              <Button size="sm" variant="ghost" onClick={onSettings}>
+                Settings
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AssistantMessage({ index, message, streaming }) {
+  const { text, pending } = splitReply(message.content);
+  return (
+    <div className="space-y-3 text-[13.5px] leading-relaxed text-fg">
+      {text ? <Markdown text={text} /> : !pending && <Loader2 className="size-4 animate-spin text-faint" />}
+      {streaming && pending && (
+        <p className="flex items-center gap-2 text-[12.5px] text-muted">
+          <Loader2 className="size-3.5 animate-spin" /> Preparing changes for your approval…
+        </p>
+      )}
+      {message.proposal && <Proposal index={index} proposal={message.proposal} />}
+    </div>
+  );
+}
+
+/** Proposed changes: nothing happens until the user approves. */
+function Proposal({ index, proposal: p }) {
+  const { toggle, decide } = useChat.getState();
+  if (p.status === 'unreadable') {
+    return <p className="rounded-xl border border-line bg-bg/40 px-3.5 py-2.5 text-[12.5px] text-muted">The assistant suggested changes, but they couldn’t be read. Ask it to try again.</p>;
+  }
+  if (p.status === 'checking') {
+    return (
+      <p className="flex items-center gap-2 text-[12.5px] text-muted">
+        <Loader2 className="size-3.5 animate-spin" /> Checking the suggested changes…
+      </p>
+    );
+  }
+  if (p.status === 'invalid') return <p className="rounded-xl border border-line bg-bg/40 px-3.5 py-2.5 text-[12.5px] text-muted">{p.error}</p>;
+
+  const count = p.selected?.filter(Boolean).length || 0;
+  const settled = p.status === 'applied' || p.status === 'dismissed';
+  const rows = p.status === 'applied' ? p.applied.map((a) => ({ ...a, ok: true })) : p.items;
+  const possible = p.items?.filter((it) => it.ok).length || 0;
+
+  return (
+    <section aria-label="Proposed changes" className={cx('overflow-hidden rounded-xl border bg-card shadow-card', settled ? 'border-line' : 'border-accent/40')}>
+      <header className="flex items-center gap-2 border-b border-line px-3.5 py-2.5">
+        <WandSparkles className="size-4 text-accent" />
+        <span className="flex-1 text-[12.5px] font-medium text-fg">
+          {p.status === 'applied' ? 'Applied' : p.status === 'dismissed' ? 'Dismissed. Nothing was changed' : 'Suggested changes · nothing changes until you approve'}
+        </span>
+      </header>
+      <ul className="divide-y divide-line">
+        {rows.map((it, k) => (
+          <li key={k} className={cx('flex items-start gap-2.5 px-3.5 py-2.5 text-[12.5px]', p.status === 'dismissed' && 'opacity-50')}>
+            {p.status === 'applied' ? (
+              <Check className="mt-0.5 size-4 shrink-0 text-ok" />
+            ) : !it.ok ? (
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-faint" />
+            ) : (
+              <input
+                type="checkbox"
+                aria-label={`${it.verb} ${it.summary}`}
+                checked={!!p.selected[k]}
+                disabled={settled || p.status === 'applying'}
+                onChange={() => toggle(index, k)}
+                className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]"
+              />
+            )}
+            <span className={cx('min-w-0', !it.ok && 'text-faint')}>
+              <span className={cx('font-medium', it.ok ? 'text-fg' : 'text-faint')}>{it.verb}</span> <span className={it.ok ? 'text-muted' : ''}>{it.summary}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {p.error && <p className="border-t border-line bg-danger/6 px-3.5 py-2 text-[12.5px] text-danger">{p.error}</p>}
+      {!settled && (
+        <footer className="flex items-center justify-end gap-2 border-t border-line px-3.5 py-2.5">
+          <Button size="sm" variant="ghost" disabled={p.status === 'applying'} onClick={() => decide(index, false)}>
+            <X className="size-3.5" /> Dismiss
+          </Button>
+          <Button size="sm" variant="primary" disabled={!count || p.status === 'applying'} onClick={() => decide(index, true)}>
+            {p.status === 'applying' ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+            {count === possible ? (count === 1 ? 'Apply change' : `Apply ${count} changes`) : `Apply ${count} of ${possible}`}
+          </Button>
+        </footer>
+      )}
+    </section>
   );
 }
 

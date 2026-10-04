@@ -54,7 +54,7 @@ test('board snapshot covers projects, columns, due labels and detail', () => {
   const late = store.createTask({ title: 'Evening call', dueAt: new Date(2030, 0, 10, 23, 30).toISOString() });
   assert.match(chat.boardContext({ now }), new RegExp(`#${late.id} Evening call · .*\\(2030-01-10 23:30\\)`));
   assert.match(text, /### Done \(done column\)/);
-  assert.match(chat.systemPrompt(text), /cannot change anything/);
+  assert.match(chat.systemPrompt(text), /nothing changes until they approve/);
 });
 
 test('conversation is validated', () => {
@@ -90,9 +90,64 @@ test('provider errors are explained before anything streams', async () => {
   let started = false;
   await assert.rejects(
     chat.streamChat({ messages: [{ role: 'user', content: 'hi' }], signal: new AbortController().signal, onStart: () => (started = true), write: () => {} }),
-    (err) => err.status === 401 && /Invalid API key/.test(err.message) && /Check the API key/.test(err.message)
+    (err) => err.status === 401 && err.kind === 'auth' && /didn’t accept the API key/.test(err.message)
   );
   assert.equal(started, false);
-  store.updateLlmSettings({ baseUrl: 'http://127.0.0.1:9/v1' });
-  await assert.rejects(chat.listModels(), /Could not reach/);
+  // a port nothing listens on
+  const probe = createServer();
+  await new Promise((r) => probe.listen(0, '127.0.0.1', r));
+  const port = probe.address().port;
+  await new Promise((r) => probe.close(r));
+  store.updateLlmSettings({ baseUrl: `http://127.0.0.1:${port}/v1` });
+  await assert.rejects(chat.listModels(), (err) => err.kind === 'unreachable' && /Can’t connect to 127\.0\.0\.1:\d+\. If the model runs on this computer/.test(err.message));
+});
+
+test('error messages stay plain: no status codes, HTML or stack traces', async () => {
+  const page = '<!doctype html><!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]--><title>Origin is unreachable</title>';
+  const res = (status, body) => new Response(body, { status });
+  const cases = [
+    [530, page, 'down'],
+    [502, page, 'down'],
+    [503, '{"error":{"message":"overloaded"}}', 'down'],
+    [429, '{"error":{"message":"Rate limit reached for requests"}}', 'rate_limit'],
+    [404, '{"error":"model \'nope\' not found"}', 'not_found'],
+    [400, '{"error":{"message":"This model\'s maximum context length is 8192 tokens"}}', 'too_long'],
+    [400, page, 'bad_request'],
+  ];
+  for (const [status, body, kind] of cases) {
+    const err = await chat.providerError(res(status, body), 'https://llm.example.com/v1');
+    assert.equal(err.kind, kind, `status ${status}`);
+    assert.doesNotMatch(err.message, /<|>|doctype|\b\d{3}\b|undefined/i, err.message);
+    assert.ok(err.detail.includes(String(status)), 'technical detail kept for the server log');
+  }
+  assert.match((await chat.providerError(res(530, page), 'https://llm.example.com/v1')).message, /llm\.example\.com.*isn’t responding/);
+  const timeout = chat.unreachable(Object.assign(new Error('x'), { name: 'TimeoutError' }), 'https://llm.example.com/v1');
+  assert.equal(timeout.kind, 'timeout');
+  const dns = chat.unreachable(Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } }), 'https://llm.example.com/v1');
+  assert.match(dns.message, /Can’t find llm\.example\.com/);
+});
+
+test('a web page instead of an API is reported as a wrong base URL', async () => {
+  const html = createServer((req, res) => {
+    req.resume();
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end('<html><body>Welcome</body></html>');
+  });
+  await new Promise((r) => html.listen(0, '127.0.0.1', r));
+  store.updateLlmSettings({ baseUrl: `http://127.0.0.1:${html.address().port}`, apiKey: 'sk-test-1234' });
+  await assert.rejects(chat.listModels(), (err) => err.kind === 'bad_url' && /web page/.test(err.message));
+  let started = false;
+  await assert.rejects(
+    chat.streamChat({ messages: [{ role: 'user', content: 'hi' }], signal: new AbortController().signal, onStart: () => (started = true), write: () => {} }),
+    (err) => err.kind === 'bad_url'
+  );
+  assert.equal(started, false);
+  html.close();
+});
+
+test('the system prompt explains how to propose changes', () => {
+  const p = chat.systemPrompt('(snapshot)');
+  assert.match(p, new RegExp('```' + chat.ACTIONS_FENCE));
+  assert.match(p, /nothing changes until they approve/);
+  assert.match(p, /cannot delete/);
 });

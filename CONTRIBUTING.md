@@ -35,6 +35,7 @@ server/db.js        ← all data & business rules: projects, columns, tasks, set
 server/index.js     ← REST API, live updates (SSE), serves the UI
 server/reminders.js ← deadline reminder engine + Web Push delivery
 server/chat.js      ← AI chat: board snapshot + streaming proxy to an OpenAI-compatible provider
+server/actions.js   ← changes the assistant proposes: preview for approval, then apply in one transaction
 mcp/index.js        ← MCP server for AI agents (uses server/db.js)
 shared/due.js       ← "Due tomorrow" / "Overdue 2d" labels, shared by UI + MCP
 web/public/
@@ -103,7 +104,8 @@ The [roadmap in the README](README.md#-roadmap) has the bigger picture. These ar
 | Command palette (<kbd>⌘K</kbd>) | 🟡 Medium |
 | Natural-language task capture: "renew insurance next Friday, high priority" → a filled-in task | 🟡 Medium |
 | Daily briefing notification: what's due and a suggested plan | 🟡 Medium |
-| Actions in chat: tool calling to move or edit tasks, with a confirm step | 🟠 Advanced |
+| Undo button on applied chat changes | 🟡 Medium |
+| Native tool calling for providers that support it (keep the approval card) | 🟠 Advanced |
 | Planning agent: propose deadline, priority and breakdown changes as a diff you approve | 🟠 Advanced |
 | Semantic search with local embeddings | 🟠 Advanced |
 | Streamable-HTTP transport for the MCP server | 🟠 Advanced |

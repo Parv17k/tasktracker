@@ -98,6 +98,9 @@ function tx(fn) {
   }
 }
 
+/** Runs several writes as one all-or-nothing change (used to apply approved AI actions). */
+export const transaction = (fn) => tx(fn);
+
 const now = () => new Date().toISOString();
 const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -262,7 +265,7 @@ function cleanText(v, field, { max = 20000, required = false } = {}) {
 }
 
 /** Accepts 'YYYY-MM-DD' (date only) or any ISO datetime. Returns [stored, hasTime]. */
-function parseDue(v) {
+export function parseDue(v) {
   if (v == null || v === '') return [null, 0];
   const s = String(v).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {

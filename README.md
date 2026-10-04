@@ -34,7 +34,7 @@ Ask it what matters today. Let your agents manage tasks over MCP. Keep every byt
 
 Most task apps are either cloud-hosted and heavy, or plain text and bare. Task Tracker sits in between, and it's built for working **with** AI:
 
-- ✨ **Ask your board anything.** "What should I focus on today?" "What's slipping?" "Summarize this project." Bring any OpenAI-compatible model: OpenAI, OpenRouter, Groq, or a local one with Ollama or LM Studio.
+- ✨ **Ask your board anything, and let it act with your OK.** "What should I focus on today?" "Move the overdue ones to Friday." The assistant proposes changes and nothing happens until you approve. Bring any OpenAI-compatible model: OpenAI, OpenRouter, Groq, or a local one with Ollama or LM Studio.
 - 🤖 **Agents are first-class users.** A built-in [MCP](https://modelcontextprotocol.io) server gives Claude, Cursor and other agents 16 tools to read, create, move and complete tasks, and you watch it happen live.
 - 🗂️ **Every project at a glance.** A home page shows each project's tasks by status, what's overdue, and what's coming up across all of them.
 - 🧘 **Low cognitive load.** Four columns, one click to open a card, no Save buttons. Everything autosaves.
@@ -68,7 +68,9 @@ Click ✨ in the top bar and chat with your board.
 
 - **Grounded answers**: every question carries a compact snapshot of your projects, columns and tasks, with due dates, priorities, subtasks and tracked time. The project you have open comes first.
 - **Any OpenAI-compatible provider**: one-click presets for OpenAI, OpenRouter, Groq, Ollama and LM Studio, or any base URL. *Load models* lists what's available and tests the connection.
+- **Acts with your approval**: ask it to move, reschedule, reprioritise, create or complete tasks, and it shows an approval card. Untick anything you don't want, then **Apply**. Nothing changes until you do.
 - **Streams as it thinks**, with a Stop button. The conversation follows you between pages.
+- **Clear when something's wrong**: if your provider is down, the key is wrong or the URL is off, you get a plain explanation and a next step, not an error dump.
 - **Private by design**: your API key is stored in your local database and sent only to your provider. The browser only ever sees `…last4`.
 
 </td>
@@ -95,7 +97,7 @@ A first-class **MCP server** turns Task Tracker into shared memory for your codi
 
 <br />
 
-> 🔒 **What leaves your machine?** Only when you ask a question: a summary of your tasks goes to the provider you chose. Point it at Ollama or LM Studio and even that stays local. The chat is **read-only** today: it suggests, you decide. A planning agent that can act with your approval is next on the [roadmap](#-roadmap).
+> 🔒 **What leaves your machine?** Only when you ask a question: a summary of your tasks goes to the provider you chose. Point it at Ollama or LM Studio and even that stays local. Changes always need your approval, it can't delete anything (archive is the most it can do), and every change is checked against the same rules as the board.
 
 ## 🎯 Features
 
@@ -308,7 +310,7 @@ flowchart LR
     style node fill:transparent,stroke:#94a3b8,stroke-width:1px,stroke-dasharray:6 4,color:#64748b
 ```
 
-### ✨ Ask: from your question to a grounded answer
+### ✨ Ask: from your question to an answer, and changes you approve
 
 ```mermaid
 sequenceDiagram
@@ -327,6 +329,15 @@ sequenceDiagram
     LLM-->>API: streamed tokens
     API-->>UI: streamed text
     Note over UI: Answer appears word by word ✨<br/>Stop anytime
+    opt the answer proposes changes
+        UI->>API: preview the proposed changes
+        API-->>UI: plain-language list, checked against the board's rules
+        UI->>You: approval card: tick what you want
+        You->>UI: Apply
+        UI->>API: apply the approved changes
+        API->>DB: one transaction, all or nothing
+        API-)UI: board updates live
+    end
 ```
 
 ### ⚡ Live sync: an agent completes a task and your board updates
@@ -438,6 +449,7 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 
 ### ✅ Recently shipped
 - ✨ AI chat with any OpenAI-compatible provider, grounded in your board
+- ✅ The assistant can change your board, with an approval card for every change
 - 🗂️ Multiple projects with a home page, drag-to-reorder projects and columns
 - 📲 Installable app with deadline reminders that work while it's closed
 - 🎨 Twenty-four themes
@@ -447,7 +459,8 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 | Idea | What it means | Status |
 | --- | --- | --- |
 | **Planning agent** | The chat becomes an agent that manages your timeline: proposes deadlines, rebalances priorities when things slip, and breaks goals into tasks. Every change shows as a diff you approve with one click | 🧪 Designing |
-| **Actions in chat** | "Move #12 to Done", "push the roadmap to Friday": the model calls tools, and you confirm before anything changes | 📋 Planned |
+| **Undo for applied changes** | One click to roll back everything the assistant just applied | 🙋 Help wanted |
+| **Native tool calling** | Use the provider's function calling when it's available, with the current approval card as the fallback | 🙋 Help wanted |
 | **Daily briefing** | A morning note: what's due, what's at risk, and a suggested plan for the day, delivered as a notification | 📋 Planned |
 | **Weekly review** | What you finished, what slipped, and where your time went, from the timer data | 📋 Planned |
 | **Natural-language capture** | Type "remind me to renew insurance next Friday, high priority" and get a fully filled task | 🙋 Help wanted |

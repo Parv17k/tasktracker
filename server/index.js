@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import * as store from './db.js';
 import { startReminders } from './reminders.js';
 import { listModels, streamChat } from './chat.js';
+import * as actions from './actions.js';
 
 const PORT = Number(process.env.PORT) || 1717;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -15,8 +16,11 @@ const app = Fastify({ logger: false });
 
 app.setErrorHandler((err, req, reply) => {
   const status = err.status || err.statusCode || 500;
-  if (status >= 500) console.error(err);
-  reply.code(status).send({ error: err.message });
+  // chat errors carry a friendly message for people and a technical detail for this log
+  if (err.kind) {
+    if (err.detail) console.error(`chat ${err.kind}: ${err.detail}`);
+  } else if (status >= 500) console.error(err);
+  reply.code(status).send({ error: err.message, ...(err.kind && { kind: err.kind }) });
 });
 
 // ---------- live updates (SSE) ----------
@@ -99,6 +103,9 @@ app.post('/api/push/test', async () => reminders.test());
 app.get('/api/settings/llm', async () => store.getLlmSettings());
 app.patch('/api/settings/llm', async (req) => store.updateLlmSettings(req.body));
 app.get('/api/chat/models', async () => ({ models: await listModels() }));
+// changes proposed by the assistant: describe them for approval, then apply the approved ones
+app.post('/api/chat/actions/preview', async (req) => ({ items: actions.preview(req.body?.actions) }));
+app.post('/api/chat/actions/apply', async (req) => actions.apply(req.body?.actions));
 app.post('/api/chat', async (req, reply) => {
   const { messages, projectId } = req.body || {};
   // stop the upstream request if the user presses Stop or closes the tab
