@@ -80,7 +80,7 @@ test/               ← node:test suite
 Short and descriptive, in the imperative mood:
 
 ```
-Add Solarized theme
+Add Catppuccin theme
 Fix overdue count ignoring tasks with a due time
 ```
 
@@ -88,7 +88,7 @@ Fix overdue count ignoring tasks with a due time
 
 | Idea | Difficulty |
 | --- | --- |
-| New themes (Solarized, Dracula, Rosé Pine, Gruvbox…) | 🟢 Easy |
+| New themes (Catppuccin, Tokyo Night, Everforest, Nord…) | 🟢 Easy |
 | Drag to reorder subtasks in the task panel | 🟢 Easy |
 | Keyboard shortcuts help dialog (<kbd>?</kbd>) | 🟢 Easy |
 | Labels / tags on tasks, with filtering | 🟡 Medium |

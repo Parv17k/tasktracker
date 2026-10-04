@@ -36,7 +36,7 @@ Most task apps are either cloud-hosted and heavy, or plain text and bare. Task T
 - 🔌 **Built for agents.** A first-class [MCP](https://modelcontextprotocol.io) server lets Claude, Cursor or any MCP client read, create, move and complete your tasks, and you watch it happen live in the browser.
 - 🔔 **Never miss a deadline.** Install it as an app and get system notifications before things are due, even when the window is closed.
 - 🏠 **Local-first.** Everything lives in one SQLite file on your machine. No account, no cloud, no telemetry.
-- 🎨 **Pleasant to look at.** Nineteen focus-friendly themes, from warm Paper to neon Terminal.
+- 🎨 **Pleasant to look at.** Twenty-four focus-friendly themes, from warm Paper to neon Terminal.
 
 ## Quick start
 
@@ -137,7 +137,7 @@ Turn on reminders from the 🔔 bell, and Task Tracker sends system notification
 
 ## 🎨 Themes
 
-Nineteen themes designed for focus. Switch instantly from the brush icon in the top bar; your choice is remembered.
+Twenty-four themes designed for focus. Switch instantly from the brush icon in the top bar; your choice is remembered.
 
 | | |
 |:-:|:-:|
@@ -145,7 +145,7 @@ Nineteen themes designed for focus. Switch instantly from the brush icon in the 
 | <img src="docs/screenshots/board-terminal.png" alt="Terminal theme" /> **Terminal**: neon green on black | <img src="docs/screenshots/board-sakura.png" alt="Sakura theme" /> **Sakura**: soft blush, quiet focus |
 | <img src="docs/screenshots/board-bubblegum.png" alt="Bubblegum theme" /> **Bubblegum**: playful pink, soft & rounded | <img src="docs/screenshots/board-grayscale.png" alt="Grayscale theme" /> **Grayscale**: no color, no glare, built for all-day screen time |
 
-Also included: **Paper** · **Nordic Frost** · **Sage Garden** · **Espresso Library** · **Graphite** · **Grayscale Dark** · **New York** · **Crimson** · **Ivy** · **Cardinal** · **Navy & Gold** · **Sunset Orange** · **Harbor Gold**
+Also included: **Paper** · **Nordic Frost** · **Sage Garden** · **Espresso Library** · **Graphite** · **Grayscale Dark** · **New York** · **Crimson** · **Ivy** · **Cardinal** · **Navy & Gold** · **Sunset Orange** · **Harbor Gold** · **Solarized** · **Dracula** · **Rosé Pine** · **Gruvbox** · **Neon Orange**
 
 ## 🤖 Plug in your AI agent (MCP)
 

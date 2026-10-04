@@ -296,24 +296,54 @@
   --shadow-pop: 0 0 0 1px rgba(57, 255, 106, 0.3), 0 0 32px -8px rgba(57, 255, 106, 0.4);
   --dot-l: 0.85;
   --dot-c: 0.2;
+  --phosphor: 57, 255, 106;
 }
 
-/* phosphor glow + block caret for the terminal look */
-[data-theme='terminal'] body {
-  font-size: 13px;
-  text-shadow: 0 0 6px rgba(57, 255, 106, 0.35);
+[data-theme='neon-orange'] {
+  color-scheme: dark;
+  --bg: #000000;
+  --bg-image: repeating-linear-gradient(to bottom, rgba(255, 150, 30, 0.025) 0, rgba(255, 150, 30, 0.025) 1px, transparent 1px, transparent 3px);
+  --surface: #080502;
+  --card: #0d0803;
+  --text: #ff9f1c;
+  --muted: #d9820f;
+  --faint: #8a5108;
+  --border: #3a2207;
+  --border-strong: #6b3e0c;
+  --hover: #1f1206;
+  --accent: #ff9f1c;
+  --accent-fg: #000000;
+  --accent-soft: #2e1a05;
+  --danger: #ff4d6d;
+  --warn: #ffe14d;
+  --ok: #4dff88;
+  --note: #120a02;
+  --font-display: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --font-body: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --radius: 2px;
+  --shadow-card: 0 0 0 1px rgba(255, 159, 28, 0.12), 0 0 12px -4px rgba(255, 159, 28, 0.25);
+  --shadow-lift: 0 0 0 1px rgba(255, 159, 28, 0.5), 0 0 28px -4px rgba(255, 159, 28, 0.45);
+  --shadow-pop: 0 0 0 1px rgba(255, 159, 28, 0.3), 0 0 32px -8px rgba(255, 159, 28, 0.4);
+  --dot-l: 0.85;
+  --dot-c: 0.2;
+  --phosphor: 255, 159, 28;
 }
-[data-theme='terminal'] :is(h1, h2, h3).font-display::before {
+
+/* phosphor glow + block caret for the terminal looks */
+:is([data-theme='terminal'], [data-theme='neon-orange']) body {
+  font-size: 13px;
+  text-shadow: 0 0 6px rgba(var(--phosphor), 0.35);
+}
+:is([data-theme='terminal'], [data-theme='neon-orange']) :is(h1, h2, h3).font-display::before {
   content: '> ';
   opacity: 0.6;
 }
-[data-theme='terminal'] input,
-[data-theme='terminal'] textarea {
-  caret-color: #39ff6a;
+:is([data-theme='terminal'], [data-theme='neon-orange']) :is(input, textarea) {
+  caret-color: var(--accent);
   caret-shape: block;
 }
-[data-theme='terminal'] ::selection {
-  background: #39ff6a;
+:is([data-theme='terminal'], [data-theme='neon-orange']) ::selection {
+  background: var(--accent);
   color: #000;
   text-shadow: none;
 }
@@ -665,6 +695,145 @@
   letter-spacing: -0.02em;
 }
 
+/* Solarized: the classic precision palette, light variant */
+[data-theme='solarized'] {
+  color-scheme: light;
+  --bg: #eee8d5;
+  --bg-image: none;
+  --surface: #e6dfc8;
+  --card: #fdf6e3;
+  --text: #073642;
+  --muted: #586e75;
+  --faint: #839496;
+  --border: #ddd6bf;
+  --border-strong: #c9c0a4;
+  --hover: #e8e1cb;
+  --accent: #1f6fae;
+  --accent-fg: #fdf6e3;
+  --accent-soft: #dde6e4;
+  --danger: #c62e2b;
+  --warn: #8f6c00;
+  --ok: #5f7200;
+  --note: #f6edcf;
+  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 6px;
+  --shadow-card: 0 1px 2px rgba(7, 54, 66, 0.08);
+  --shadow-lift: 0 18px 40px -12px rgba(7, 54, 66, 0.3);
+  --shadow-pop: 0 14px 40px -10px rgba(7, 54, 66, 0.26);
+  --dot-l: 0.58;
+  --dot-c: 0.12;
+}
+
+[data-theme='solarized'] .font-display {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+/* Dracula: purple, pink and green on deep slate */
+[data-theme='dracula'] {
+  color-scheme: dark;
+  --bg: #21222c;
+  --bg-image: linear-gradient(180deg, rgba(189, 147, 249, 0.07), transparent 260px);
+  --surface: #252733;
+  --card: #2d2f3d;
+  --text: #f8f8f2;
+  --muted: #b2b6d4;
+  --faint: #6f7bb0;
+  --border: #3b3e51;
+  --border-strong: #515570;
+  --hover: #363849;
+  --accent: #bd93f9;
+  --accent-fg: #21222c;
+  --accent-soft: #3d3557;
+  --danger: #ff6e6e;
+  --warn: #f1fa8c;
+  --ok: #50fa7b;
+  --note: #30302e;
+  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 8px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 22px 44px -14px rgba(0, 0, 0, 0.65);
+  --shadow-pop: 0 16px 44px -10px rgba(0, 0, 0, 0.55);
+  --dot-l: 0.75;
+  --dot-c: 0.14;
+}
+
+[data-theme='dracula'] .font-display {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Rosé Pine: muted rose, gold and iris on soft midnight */
+[data-theme='rose-pine'] {
+  color-scheme: dark;
+  --bg: #191724;
+  --bg-image: linear-gradient(180deg, rgba(235, 188, 186, 0.05), transparent 260px);
+  --surface: #1f1d2e;
+  --card: #26233a;
+  --text: #e0def4;
+  --muted: #a8a4c4;
+  --faint: #6e6a86;
+  --border: #2f2c45;
+  --border-strong: #403d52;
+  --hover: #2a273f;
+  --accent: #ebbcba;
+  --accent-fg: #191724;
+  --accent-soft: #3a2f3e;
+  --danger: #eb6f92;
+  --warn: #f6c177;
+  --ok: #9ccfd8;
+  --note: #2a2533;
+  --font-display: 'Fraunces Variable', Georgia, serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 12px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-lift: 0 22px 44px -14px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 16px 44px -10px rgba(0, 0, 0, 0.5);
+  --dot-l: 0.74;
+  --dot-c: 0.09;
+}
+
+[data-theme='rose-pine'] .font-display {
+  font-weight: 500;
+}
+
+/* Gruvbox: retro warm browns with orange and yellow */
+[data-theme='gruvbox'] {
+  color-scheme: dark;
+  --bg: #1d2021;
+  --bg-image: none;
+  --surface: #232526;
+  --card: #282828;
+  --text: #ebdbb2;
+  --muted: #bdae93;
+  --faint: #7c6f64;
+  --border: #3c3836;
+  --border-strong: #504945;
+  --hover: #32302f;
+  --accent: #fe8019;
+  --accent-fg: #1d2021;
+  --accent-soft: #3f2e1f;
+  --danger: #fb5f4c;
+  --warn: #fabd2f;
+  --ok: #b8bb26;
+  --note: #2f2a1e;
+  --font-display: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 4px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-lift: 0 22px 44px -14px rgba(0, 0, 0, 0.7);
+  --shadow-pop: 0 16px 44px -10px rgba(0, 0, 0, 0.6);
+  --dot-l: 0.7;
+  --dot-c: 0.12;
+}
+
+[data-theme='gruvbox'] .font-display {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
 /* column color dots: hue per name, lightness/chroma per theme */
 [data-color='slate'] { --hue: 255; --dot-c-scale: 0.25; }
 [data-color='blue'] { --hue: 250; }
@@ -689,7 +858,11 @@
 [data-theme='graphite'],
 [data-theme='terminal'],
 [data-theme='cardinal'],
-[data-theme='navy-gold'] {
+[data-theme='navy-gold'],
+[data-theme='dracula'],
+[data-theme='rose-pine'],
+[data-theme='gruvbox'],
+[data-theme='neon-orange'] {
   --bar-l: 0.65;
 }
 [data-color] {
