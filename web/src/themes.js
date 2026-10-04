@@ -2,6 +2,7 @@
 export const THEMES = [
   { id: 'paper', name: 'Paper', tagline: 'Warm ink on cream stock', swatch: ['#f5efe3', '#fffcf5', '#2b2925', '#9a3b2f'] },
   { id: 'old-money', name: 'Old Money', tagline: 'Hunter green, ivory & brass', swatch: ['#ece5d3', '#f8f3e6', '#1f3329', '#a8854d'] },
+  { id: 'new-york', name: 'New York', tagline: 'Violet & white, bold and crisp', swatch: ['#f6f3f9', '#ffffff', '#1d0f29', '#57068c'] },
   { id: 'nordic', name: 'Nordic Frost', tagline: 'Cool, calm, Scandinavian', swatch: ['#e9edf2', '#ffffff', '#2e3440', '#5e81ac'] },
   { id: 'sakura', name: 'Sakura', tagline: 'Soft blush, quiet focus', swatch: ['#faf2f1', '#fffafa', '#3d2b30', '#c0587a'] },
   { id: 'bubblegum', name: 'Bubblegum', tagline: 'Playful pink, soft & rounded', swatch: ['#fff0f6', '#ffffff', '#4a1d38', '#c92f7d'] },

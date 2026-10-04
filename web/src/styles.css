@@ -422,6 +422,41 @@
   letter-spacing: -0.015em;
 }
 
+/* New York: violet and white, bold sans, crisp white cards */
+[data-theme='new-york'] {
+  color-scheme: light;
+  --bg: #f6f3f9;
+  --bg-image: linear-gradient(180deg, rgba(87, 6, 140, 0.06), transparent 220px);
+  --surface: #ede6f3;
+  --card: #ffffff;
+  --text: #1d0f29;
+  --muted: #5c4b6b;
+  --faint: #9a8aa8;
+  --border: #e0d5ea;
+  --border-strong: #c7b3d9;
+  --hover: #e8def1;
+  --accent: #57068c;
+  --accent-fg: #ffffff;
+  --accent-soft: #eadcf5;
+  --danger: #b3261e;
+  --warn: #8a5a00;
+  --ok: #2e7d4f;
+  --note: #fbf6e3;
+  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 8px;
+  --shadow-card: 0 1px 2px rgba(45, 10, 70, 0.08), 0 0 0 1px rgba(87, 6, 140, 0.04);
+  --shadow-lift: 0 20px 40px -14px rgba(60, 10, 100, 0.35);
+  --shadow-pop: 0 16px 44px -12px rgba(60, 10, 100, 0.3);
+  --dot-l: 0.56;
+  --dot-c: 0.13;
+}
+
+[data-theme='new-york'] .font-display {
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
 /* column color dots: hue per name, lightness/chroma per theme */
 [data-color='slate'] { --hue: 255; --dot-c-scale: 0.25; }
 [data-color='blue'] { --hue: 250; }

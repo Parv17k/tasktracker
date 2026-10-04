@@ -222,6 +222,21 @@ export const useBoard = create((set, get) => {
       );
     },
 
+    /** Drag-and-drop reorder: put `id` where `overId` is (hidden columns keep their slots). */
+    reorderColumn(id, overId) {
+      const cols = get().columns;
+      const from = cols.findIndex((c) => c.id === id);
+      const to = cols.findIndex((c) => c.id === overId);
+      if (from < 0 || to < 0 || from === to) return;
+      const reordered = [...cols];
+      reordered.splice(to, 0, reordered.splice(from, 1)[0]);
+      return optimistic(
+        () => ({ columns: reordered }),
+        () => api.moveColumn(id, to),
+        (s, columns) => ({ columns })
+      );
+    },
+
     /** dir: -1 left / +1 right, skipping hidden columns */
     shiftColumn(id, dir) {
       const cols = get().columns;

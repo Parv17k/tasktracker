@@ -35,7 +35,7 @@ Most task apps are either cloud-hosted and heavy, or plain text and bare. Task T
 - ⚡ **Fast.** One SQLite query loads the whole board in about 1 ms, and the UI updates optimistically, so nothing waits on the network.
 - 🔌 **Built for agents.** A first-class [MCP](https://modelcontextprotocol.io) server lets Claude, Cursor or any MCP client read, create, move and complete your tasks, and you watch it happen live in the browser.
 - 🏠 **Local-first.** Everything lives in one SQLite file on your machine. No account, no cloud, no telemetry.
-- 🎨 **Pleasant to look at.** Twelve focus-friendly themes, from warm Paper to neon Terminal.
+- 🎨 **Pleasant to look at.** Thirteen focus-friendly themes, from warm Paper to neon Terminal.
 
 ## Quick start
 
@@ -117,7 +117,7 @@ Send invoice to Acme @fri !high
 
 ## 🎨 Themes
 
-Twelve themes designed for focus. Switch instantly from the brush icon in the top bar; your choice is remembered.
+Thirteen themes designed for focus. Switch instantly from the brush icon in the top bar; your choice is remembered.
 
 | | |
 |:-:|:-:|
@@ -125,7 +125,7 @@ Twelve themes designed for focus. Switch instantly from the brush icon in the to
 | <img src="docs/screenshots/board-terminal.png" alt="Terminal theme" /> **Terminal**: neon green on black | <img src="docs/screenshots/board-sakura.png" alt="Sakura theme" /> **Sakura**: soft blush, quiet focus |
 | <img src="docs/screenshots/board-bubblegum.png" alt="Bubblegum theme" /> **Bubblegum**: playful pink, soft & rounded | <img src="docs/screenshots/board-grayscale.png" alt="Grayscale theme" /> **Grayscale**: no color, no glare, built for all-day screen time |
 
-Also included: **Paper** · **Nordic Frost** · **Sage Garden** · **Espresso Library** · **Graphite** · **Grayscale Dark**
+Also included: **Paper** · **Nordic Frost** · **Sage Garden** · **Espresso Library** · **Graphite** · **Grayscale Dark** · **New York**
 
 ## 🤖 Plug in your AI agent (MCP)
 

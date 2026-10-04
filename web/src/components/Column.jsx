@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { ArrowDownToLine, ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, EyeOff, MoreHorizontal, Palette, Pencil, Plus, Trash2 } from 'lucide-react';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, EyeOff, GripVertical, MoreHorizontal, Palette, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useBoard } from '../store';
 import { COLUMN_COLORS } from '../themes';
 import { parseQuickAdd } from '../dates';
@@ -17,26 +18,39 @@ export function Column({ column, taskIds, tasksById, totalCount, filtered, isFir
   const setQuickAdd = useBoard((s) => s.setQuickAdd);
   const dragging = useBoard((s) => s.dragging);
   const empty = taskIds.length === 0;
+  const sortable = useSortable({ id: `colsort-${column.id}`, data: { type: 'column-sort', columnId: column.id }, disabled: renaming });
 
   return (
     <section
+      ref={sortable.setNodeRef}
+      style={{ transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition }}
       className={cx(
-        'flex max-h-full w-[300px] shrink-0 flex-col rounded-[calc(var(--radius)+6px)] bg-surface/70 ring-1 transition-shadow',
-        dragging && isOver ? 'ring-2 ring-accent/50' : 'ring-line/60'
+        'group/col flex max-h-full w-[300px] shrink-0 flex-col rounded-[calc(var(--radius)+6px)] bg-surface/70 ring-1 transition-shadow',
+        dragging && isOver ? 'ring-2 ring-accent/50' : 'ring-line/60',
+        sortable.isDragging && 'opacity-40'
       )}
     >
-      <header className="group/col flex items-center gap-2 px-3 pb-2 pt-3">
+      {/* the header is the drag handle for reordering columns */}
+      <header
+        {...sortable.attributes}
+        {...sortable.listeners}
+        aria-roledescription="sortable column"
+        aria-label={`${column.name} column, drag to reorder`}
+        title="Drag to reorder · double-click name to rename"
+        className="relative flex cursor-grab items-center gap-2 rounded-t-[calc(var(--radius)+6px)] px-3 pb-2 pt-3 outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
+      >
+        <GripVertical aria-hidden className="absolute left-0 top-[15px] size-3.5 text-faint opacity-0 transition-opacity group-hover/col:opacity-70" />
         <ColorDot color={column.color} />
         {renaming ? (
           <RenameInput column={column} onDone={() => setRenaming(false)} />
         ) : (
-          <h2 onDoubleClick={() => setRenaming(true)} className="font-display min-w-0 truncate text-[15px] text-fg" title="Double-click to rename">
+          <h2 onDoubleClick={() => setRenaming(true)} className="font-display min-w-0 truncate text-[15px] text-fg">
             {column.name}
           </h2>
         )}
         <span className="rounded-full bg-hover px-1.5 text-[11px] font-medium tabular-nums text-muted">{filtered ? `${taskIds.length}/${totalCount}` : totalCount}</span>
         {column.isDone && <CheckCircle2 className="size-3.5 text-ok" aria-label="Done column" />}
-        <div className="ml-auto flex items-center">
+        <div className="ml-auto flex cursor-default items-center" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <IconButton size="sm" label="Add task" onClick={() => setQuickAdd(column.id)}>
             <Plus className="size-4" />
           </IconButton>
@@ -89,7 +103,9 @@ function RenameInput({ column, onDone }) {
       onChange={(e) => setName(e.target.value)}
       onBlur={commit}
       onFocus={(e) => e.target.select()}
+      onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
+        e.stopPropagation();
         if (e.key === 'Enter') commit();
         if (e.key === 'Escape') onDone();
       }}
@@ -251,5 +267,26 @@ export function AddColumn() {
         className="h-9 w-full rounded-lg border border-accent bg-card px-2.5 text-[13.5px] outline-none"
       />
     </div>
+  );
+}
+
+/** What follows the pointer while a column is dragged: header plus a peek at its first cards. */
+export function ColumnOverlay({ column, tasks }) {
+  return (
+    <section className="w-[300px] rotate-[1.5deg] cursor-grabbing rounded-[calc(var(--radius)+6px)] bg-surface p-2 shadow-lift ring-2 ring-accent/40">
+      <header className="flex items-center gap-2 px-1 pb-2 pt-1">
+        <ColorDot color={column.color} />
+        <h2 className="font-display truncate text-[15px] text-fg">{column.name}</h2>
+        <span className="rounded-full bg-hover px-1.5 text-[11px] font-medium tabular-nums text-muted">{tasks.length}</span>
+      </header>
+      <div className="space-y-2">
+        {tasks.slice(0, 4).map((t) => (
+          <div key={t.id} className="truncate rounded-[var(--radius)] border border-line bg-card px-3 py-2 text-[13px] text-fg shadow-card">
+            {t.title}
+          </div>
+        ))}
+        {tasks.length > 4 && <div className="px-1 text-[12px] text-faint">+{tasks.length - 4} more</div>}
+      </div>
+    </section>
   );
 }

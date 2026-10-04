@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { closestCenter, closestCorners, DndContext, DragOverlay, KeyboardSensor, PointerSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { arrayMove, horizontalListSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { dueInfo } from '../../../shared/due.js';
 import { tasksForColumn, useBoard } from '../store';
-import { AddColumn, Column } from './Column';
+import { AddColumn, Column, ColumnOverlay } from './Column';
 import { TaskCardOverlay } from './TaskCard';
 import { RemoveColumnDialog } from './RemoveColumnDialog';
 
@@ -49,8 +49,17 @@ function dueMatches(task, filter, isDoneCol) {
   return filter === 'overdue' ? info.tone === 'overdue' : info.days <= 7;
 }
 
-/** Prefer the card under the pointer; fall back to the column; then to nearest corners. */
+const isColumnSort = (c) => c.data?.current?.type === 'column-sort';
+
+/**
+ * Columns being reordered snap to the nearest column. Cards prefer the card under the pointer,
+ * then the column body, then the nearest corners.
+ */
 function collision(args) {
+  if (args.active.data.current?.type === 'column-sort') {
+    return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(isColumnSort) });
+  }
+  args = { ...args, droppableContainers: args.droppableContainers.filter((c) => !isColumnSort(c)) };
   const hits = pointerWithin(args);
   const cards = hits.filter((h) => typeof h.id === 'number');
   if (cards.length) return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter((c) => cards.some((h) => h.id === c.id)) });
@@ -63,7 +72,8 @@ export function Board() {
   const tasks = useBoard((s) => s.tasks);
   const query = useBoard((s) => s.query);
   const dueFilter = useBoard((s) => s.dueFilter);
-  const { moveTask, setDragging } = useBoard.getState();
+  const { moveTask, setDragging, reorderColumn } = useBoard.getState();
+  const [activeColumnId, setActiveColumnId] = useState(null);
 
   const visible = useMemo(() => columns.filter((c) => !c.hidden), [columns]);
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
@@ -87,13 +97,14 @@ export function Board() {
   const findContainer = (id) => (id in items ? id : Object.keys(items).find((k) => items[k].includes(id)));
 
   function onDragStart({ active }) {
+    if (active.data.current?.type === 'column-sort') return setActiveColumnId(active.data.current.columnId);
     setDragging(true);
     setActiveId(active.id);
     setDragItems(derived);
   }
 
   function onDragOver({ active, over }) {
-    if (!over) return;
+    if (!over || active.data.current?.type === 'column-sort') return;
     const from = findContainer(active.id);
     const to = findContainer(over.id);
     if (!from || !to || from === to) return;
@@ -109,12 +120,19 @@ export function Board() {
   }
 
   function finish() {
+    setActiveColumnId(null);
     setDragItems(null);
     setActiveId(null);
     setDragging(false);
   }
 
   function onDragEnd({ active, over }) {
+    if (active.data.current?.type === 'column-sort') {
+      const overId = over?.data.current?.columnId;
+      finish();
+      if (overId != null && overId !== active.data.current.columnId) reorderColumn(active.data.current.columnId, overId);
+      return;
+    }
     const container = over && findContainer(over.id);
     if (!container) return finish();
     let list = items[container];
@@ -141,6 +159,7 @@ export function Board() {
     <>
       <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={finish}>
         <div className="flex h-full items-start gap-3 overflow-x-auto px-6 pb-6 pt-1">
+          <SortableContext items={visible.map((c) => `colsort-${c.id}`)} strategy={horizontalListSortingStrategy}>
           {visible.map((c, i) => (
             <Column
               key={c.id}
@@ -154,9 +173,13 @@ export function Board() {
               onRemove={() => setRemoving(c)}
             />
           ))}
+          </SortableContext>
           <AddColumn />
         </div>
         <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)' }}>
+          {activeColumnId != null && (
+            <ColumnOverlay column={columns.find((c) => c.id === activeColumnId)} tasks={tasksForColumn(tasks, activeColumnId)} />
+          )}
           {activeTask && <TaskCardOverlay task={activeTask} isDone={visible.find((c) => c.id === activeTask.columnId)?.isDone} />}
         </DragOverlay>
       </DndContext>
