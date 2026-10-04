@@ -58,7 +58,7 @@ Each project gets its own board. The home page shows each one in a single glance
 - **Totals and status breakdown**: how many tasks, and how many are in Open, In Progress, Follow-up, Done or your own columns
 - **Progress ring**, overdue and due-this-week counts, and when the project was last touched
 - **Coming up**: everything due in the next 7 days across *all* projects; click a card to open that task
-- Create, edit, reorder, archive or delete projects. New projects start with the four default columns, or copy another project's columns
+- Create, edit, archive or delete projects, and **drag cards on the home page to reorder them**. New projects start with the four default columns, or copy another project's columns
 - Jump between projects from the switcher in each board's title
 
 <img src="docs/screenshots/board-paper.png" alt="A project board in the Paper theme" width="100%" />

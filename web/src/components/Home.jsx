@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   AlertTriangle,
   Archive,
@@ -8,6 +11,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ChevronDown,
+  GripHorizontal,
   CircleDot,
   MoreHorizontal,
   Pencil,
@@ -24,14 +28,6 @@ import { InstallButton, RemindersButton } from './Reminders';
 import { Button, cx, Dialog, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tip } from './ui';
 
 const ICONS = ['📋', '✅', '🚀', '💼', '🏠', '🎯', '💡', '📚', '🛠️', '🎨', '💰', '🌱', '✈️', '🏋️', '🧪', '📈', '🛒', '❤️', '🎓', '🧘', '📝', '🔒', '🌍', '🎵'];
-
-function greeting(d = new Date()) {
-  const h = d.getHours();
-  if (h < 5) return 'Working late';
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
 
 function ago(iso) {
   if (!iso) return '';
@@ -77,6 +73,14 @@ export default function Home() {
 
   const setNewOpen = (v) => useBoard.setState({ newProjectOpen: v });
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  // the click that ends a drag must not open the project
+  const draggedAt = useRef(0);
+  const onDragEnd = ({ active, over }) => {
+    draggedAt.current = Date.now();
+    if (over && active.id !== over.id) useBoard.getState().reorderProject(active.id, over.id);
+  };
+
   useEffect(() => {
     document.title = 'Task Tracker';
   }, []);
@@ -100,12 +104,11 @@ export default function Home() {
           </div>
         </header>
 
-        {/* hero */}
-        <section className="pb-8 pt-6">
+        {/* today at a glance */}
+        <section className="pb-6 pt-4">
           <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-faint">{today}</p>
-          <h1 className="font-display mt-2 text-[40px] leading-[1.1] text-fg sm:text-[48px]">{greeting()}.</h1>
           {loaded && (
-            <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">
+            <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-muted">
               {totals.open === 0 ? (
                 'Everything is clear. A good moment to plan something new.'
               ) : (
@@ -153,21 +156,26 @@ export default function Home() {
         {/* projects */}
         <section className="mt-12">
           <SectionTitle title="Projects" hint={loaded ? plural(active.length, 'active project') : ''} />
-          <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(330px,1fr))]">
-            {!loaded && [0, 1, 2].map((i) => <div key={i} className="h-[270px] animate-pulse rounded-2xl bg-card/60" />)}
-            {active.map((p, i) => (
-              <ProjectCard
-                key={p.id}
-                project={p}
-                isFirst={i === 0}
-                isLast={i === active.length - 1}
-                onEdit={() => setEditing(p)}
-                onDelete={() => setDeleting(p)}
-                canArchive={active.length > 1}
-              />
-            ))}
-            {loaded && <NewProjectCard onClick={() => setNewOpen(true)} />}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => (draggedAt.current = Date.now())} onDragEnd={onDragEnd}>
+            <SortableContext items={active.map((p) => p.id)} strategy={rectSortingStrategy}>
+              <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(330px,1fr))]">
+                {!loaded && [0, 1, 2].map((i) => <div key={i} className="h-[270px] animate-pulse rounded-2xl bg-card/60" />)}
+                {active.map((p, i) => (
+                  <SortableProjectCard
+                    key={p.id}
+                    project={p}
+                    isFirst={i === 0}
+                    isLast={i === active.length - 1}
+                    onEdit={() => setEditing(p)}
+                    onDelete={() => setDeleting(p)}
+                    canArchive={active.length > 1}
+                    justDragged={() => Date.now() - draggedAt.current < 250}
+                  />
+                ))}
+                {loaded && <NewProjectCard onClick={() => setNewOpen(true)} />}
+              </div>
+            </SortableContext>
+          </DndContext>
         </section>
 
         {archived.length > 0 && (
@@ -246,22 +254,53 @@ function DueSoonCard({ task }) {
   );
 }
 
-function ProjectCard({ project: p, isFirst, isLast, onEdit, onDelete, canArchive = true }) {
+/** Active projects: the whole card can be dragged to reorder; a short press still opens it. */
+function SortableProjectCard({ justDragged, ...props }) {
+  const sortable = useSortable({ id: props.project.id });
+  return (
+    <ProjectCard
+      {...props}
+      sortable={sortable}
+      onOpen={() => !justDragged() && navigate(projectPath(props.project.id))}
+    />
+  );
+}
+
+function ProjectCard({ project: p, isFirst, isLast, onEdit, onDelete, canArchive = true, sortable, onOpen }) {
   const { updateProject, shiftProject } = useBoard.getState();
   const s = p.stats;
   const columns = s.columns.filter((c) => !c.hidden || c.count > 0);
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
-  const open = () => navigate(projectPath(p.id));
+  const open = onOpen || (() => navigate(projectPath(p.id)));
+  const dragging = sortable?.isDragging;
 
   return (
     <article
+      ref={sortable?.setNodeRef}
+      style={sortable && { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition }}
+      {...sortable?.attributes}
+      {...sortable?.listeners}
       role="link"
       tabIndex={0}
+      aria-roledescription={sortable ? 'sortable project' : undefined}
+      aria-label={sortable ? `${p.name}, drag to reorder` : undefined}
       data-color={p.color}
       onClick={open}
-      onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && open()}
-      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-line bg-card p-5 shadow-card outline-none transition duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lift focus-visible:ring-2 focus-visible:ring-accent"
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter') open();
+        else sortable?.listeners?.onKeyDown?.(e);
+      }}
+      className={cx(
+        'group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-line bg-card p-5 shadow-card outline-none transition-[border-color,box-shadow,translate,opacity] duration-200 hover:border-line-strong hover:shadow-lift focus-visible:ring-2 focus-visible:ring-accent',
+        sortable && 'active:cursor-grabbing',
+        dragging ? 'z-10 cursor-grabbing border-accent/50 shadow-lift' : 'hover:-translate-y-0.5'
+      )}
     >
+      {/* drag affordance */}
+      {sortable && (
+        <GripHorizontal aria-hidden className="pointer-events-none absolute left-1/2 top-1 size-4 -translate-x-1/2 text-faint opacity-0 transition-opacity group-hover:opacity-70" />
+      )}
       {/* soft wash of the project colour in the corner */}
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[var(--bar)] opacity-[0.07] blur-2xl transition-opacity group-hover:opacity-[0.12]" />
 

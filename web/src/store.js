@@ -108,6 +108,20 @@ export const useBoard = create((set, get) => {
       );
     },
 
+    /** Drag-and-drop reorder among active projects: put `id` where `overId` is. */
+    reorderProject(id, overId) {
+      const active = get().projects.filter((p) => !p.archived);
+      const from = active.findIndex((p) => p.id === id);
+      const to = active.findIndex((p) => p.id === overId);
+      if (from < 0 || to < 0 || from === to) return;
+      const reordered = [...active];
+      reordered.splice(to, 0, reordered.splice(from, 1)[0]);
+      return optimistic(
+        (s) => ({ projects: [...reordered, ...s.projects.filter((p) => p.archived)] }),
+        () => api.moveProject(id, to)
+      );
+    },
+
     async deleteProject(id) {
       await optimistic((s) => ({ projects: s.projects.filter((p) => p.id !== id) }), () => api.deleteProject(id));
       get().loadHome();
