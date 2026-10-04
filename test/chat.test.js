@@ -36,7 +36,7 @@ test('provider settings validate and never expose the key', () => {
   assert.equal(store.getLlmSettings().configured, false);
   assert.throws(() => store.updateLlmSettings({ baseUrl: 'ftp://nope' }), /http/);
   const s = store.updateLlmSettings({ baseUrl: `${baseUrl}/`, apiKey: 'sk-test-1234', model: 'a-model' });
-  assert.deepEqual(s, { baseUrl, model: 'a-model', hasKey: true, keyHint: '…1234', configured: true });
+  assert.deepEqual(s, { baseUrl, model: 'a-model', hasKey: true, keyHint: '…1234', configured: true, sttModel: '', ttsModel: '', ttsVoice: '' });
   assert.ok(!JSON.stringify(s).includes('sk-test'));
   // omitting the key keeps it; '' removes it
   assert.equal(store.updateLlmSettings({ model: 'b-model' }).hasKey, true);

@@ -1085,13 +1085,23 @@ export function updateReminderSettings(patch = {}) {
 
 /** Full config, including the API key. Server-side only. */
 export function getLlmConfig() {
-  return { baseUrl: '', apiKey: '', model: '', ...getSetting('llm', {}) };
+  return { baseUrl: '', apiKey: '', model: '', sttModel: '', ttsModel: '', ttsVoice: '', ...getSetting('llm', {}) };
 }
 
 /** Safe to send to the browser: the key itself never leaves the server. */
 export function getLlmSettings() {
   const c = getLlmConfig();
-  return { baseUrl: c.baseUrl, model: c.model, hasKey: !!c.apiKey, keyHint: c.apiKey ? `…${c.apiKey.slice(-4)}` : '', configured: !!(c.baseUrl && c.model) };
+  return {
+    baseUrl: c.baseUrl,
+    model: c.model,
+    hasKey: !!c.apiKey,
+    keyHint: c.apiKey ? `…${c.apiKey.slice(-4)}` : '',
+    configured: !!(c.baseUrl && c.model),
+    // optional voice models on the same provider; empty means "use the browser's built-in speech"
+    sttModel: c.sttModel,
+    ttsModel: c.ttsModel,
+    ttsVoice: c.ttsVoice,
+  };
 }
 
 /** `apiKey`: omit to keep the saved key, '' to remove it. */
@@ -1105,6 +1115,7 @@ export function updateLlmSettings(patch = {}) {
     }
     if (patch.model !== undefined) next.model = cleanText(patch.model, 'model', { max: 200 }).trim();
     if (patch.apiKey !== undefined) next.apiKey = cleanText(patch.apiKey, 'apiKey', { max: 1000 }).trim();
+    for (const k of ['sttModel', 'ttsModel', 'ttsVoice']) if (patch[k] !== undefined) next[k] = cleanText(patch[k], k, { max: 200 }).trim();
     setSetting('llm', next);
     return getLlmSettings();
   });

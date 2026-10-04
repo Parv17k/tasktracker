@@ -317,3 +317,65 @@ export async function streamChat({ messages, projectId, signal, onStart, write }
     }
   }
 }
+
+// ---------- voice: speech-to-text and text-to-speech through the same provider ----------
+
+const AUDIO_TYPES = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav' };
+
+function requireVoice(kind) {
+  const cfg = store.getLlmConfig();
+  if (!cfg.baseUrl) throw new ChatError(400, 'setup', 'Set up an AI provider first. Open settings to add one.');
+  const model = kind === 'stt' ? cfg.sttModel : cfg.ttsModel;
+  if (!model) throw new ChatError(400, 'no_voice', kind === 'stt' ? 'No speech-to-text model is set. Add one in settings, or leave it empty to use your browser’s.' : 'No voice model is set. Add one in settings, or leave it empty to use your browser’s voice.');
+  return { ...cfg, model };
+}
+
+/** Turn a recording into text with the provider's /audio/transcriptions endpoint. */
+export async function transcribe(audio, contentType = 'audio/webm') {
+  const cfg = requireVoice('stt');
+  if (!audio?.length) throw new ChatError(400, 'empty_audio', 'Nothing was recorded. Try again and speak a little closer to the microphone.');
+  const type = contentType.split(';')[0].trim();
+  const form = new FormData();
+  form.append('model', cfg.model);
+  form.append('file', new Blob([audio], { type }), `speech.${AUDIO_TYPES[type] || 'webm'}`);
+  let res;
+  try {
+    res = await fetch(`${cfg.baseUrl}/audio/transcriptions`, { method: 'POST', headers: cfg.apiKey ? { authorization: `Bearer ${cfg.apiKey}` } : {}, body: form, signal: AbortSignal.timeout(90000) });
+  } catch (err) {
+    throw unreachable(err, cfg.baseUrl);
+  }
+  if (!res.ok) throw await providerError(res, cfg.baseUrl);
+  const raw = await res.text().catch(() => '');
+  let text;
+  try {
+    const j = JSON.parse(raw);
+    text = typeof j === 'string' ? j : j.text;
+  } catch {
+    // some servers answer in plain text
+    text = /^\s*</.test(raw) ? undefined : raw;
+  }
+  if (typeof text !== 'string') throw notAnApi(cfg.baseUrl, `transcribe: ${clip(raw, 300)}`);
+  return { text: text.trim() };
+}
+
+/** Speak `text` with the provider's /audio/speech endpoint. Returns { audio, contentType }. */
+export async function speak(text) {
+  const cfg = requireVoice('tts');
+  const input = String(text ?? '').trim().slice(0, 4000);
+  if (!input) throw new ChatError(400, 'empty_text', 'There’s nothing to read aloud.');
+  let res;
+  try {
+    res = await fetch(`${cfg.baseUrl}/audio/speech`, {
+      method: 'POST',
+      headers: providerHeaders(cfg.apiKey),
+      body: JSON.stringify({ model: cfg.model, input, voice: cfg.ttsVoice || 'alloy', response_format: 'mp3' }),
+      signal: AbortSignal.timeout(90000),
+    });
+  } catch (err) {
+    throw unreachable(err, cfg.baseUrl);
+  }
+  if (!res.ok) throw await providerError(res, cfg.baseUrl);
+  const type = res.headers.get('content-type') || 'audio/mpeg';
+  if (!type.startsWith('audio/') && !type.includes('octet-stream')) throw notAnApi(cfg.baseUrl, `speech: ${type}`);
+  return { audio: Buffer.from(await res.arrayBuffer()), contentType: type.startsWith('audio/') ? type : 'audio/mpeg' };
+}

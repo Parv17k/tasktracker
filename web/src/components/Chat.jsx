@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
-import { AlertCircle, ArrowLeft, ArrowUp, Check, KeyRound, Loader2, RotateCcw, Settings2, Sparkles, Square, WandSparkles, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowUp, Check, KeyRound, Loader2, Mic, RotateCcw, Settings2, Sparkles, Square, Volume2, VolumeX, WandSparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBoard } from '../store';
+import { canRecord, hasBrowserListening, listen, speak, speakable } from '../voice';
 import { Button, cx, IconButton, Sheet, Tip } from './ui';
 
 const PRESETS = [
@@ -61,8 +62,17 @@ export const useChat = create((set, get) => ({
   messages: [],
   streaming: false,
   controller: null,
+  // voice: provider models from settings (empty = the browser's own speech), and live state
+  voiceSettings: { sttModel: '', ttsModel: '' },
+  readAloud: localStorage.getItem('tt-read-aloud') === '1',
+  listening: false,
+  speaking: false,
+  level: 0,
+  interim: '',
+  voiceCtl: null,
 
-  async send(text) {
+  async send(text, { voice = false } = {}) {
+    get().stopVoice();
     // failed turns are left out of what the model sees; a decision on proposed changes is passed on
     const history = [...get().messages.filter((m) => !m.error), { role: 'user', content: text }];
     const controller = new AbortController();
@@ -103,6 +113,64 @@ export const useChat = create((set, get) => ({
     } finally {
       set({ streaming: false, controller: null });
     }
+    await get().readReply(voice);
+  },
+
+  // ---------- voice ----------
+
+  setReadAloud(on) {
+    localStorage.setItem('tt-read-aloud', on ? '1' : '0');
+    if (!on) get().stopVoice();
+    set({ readAloud: on });
+  },
+
+  /** Tap the mic: listen for one message and send it. Tap again to stop. */
+  async toggleListening() {
+    if (get().listening) return get().stopVoice();
+    get().stopVoice();
+    const ctl = new AbortController();
+    set({ listening: true, interim: '', level: 0, voiceCtl: ctl });
+    try {
+      const text = await listen({
+        useProvider: !!get().voiceSettings.sttModel,
+        signal: ctl.signal,
+        onLevel: (level) => set({ level }),
+        onInterim: (interim) => set({ interim }),
+      });
+      set({ listening: false, interim: '', voiceCtl: null });
+      await get().send(text, { voice: true });
+    } catch (err) {
+      set({ listening: false, interim: '', level: 0, voiceCtl: null });
+      if (err.kind !== 'stopped') toast.error(err.message);
+    }
+  },
+
+  stopVoice() {
+    get().voiceCtl?.abort();
+    set({ listening: false, speaking: false, interim: '', level: 0, voiceCtl: null });
+  },
+
+  /**
+   * Read the latest answer aloud (when that's on). After a spoken question the mic opens
+   * again, so a conversation can be hands-free; proposed changes pause it for review.
+   */
+  async readReply(spokenQuestion) {
+    const last = get().messages.at(-1);
+    if (!get().readAloud || !last || last.role !== 'assistant' || last.error || !last.content.trim()) return;
+    const { text, actions } = splitReply(last.content);
+    let say = speakable(text);
+    if (actions?.length) say += ` I’ve suggested ${actions.length === 1 ? 'one change' : `${actions.length} changes`}. Review them, then tap Apply.`;
+    const ctl = new AbortController();
+    set({ speaking: true, voiceCtl: ctl });
+    try {
+      await speak(say, { useProvider: !!get().voiceSettings.ttsModel, signal: ctl.signal });
+    } catch (err) {
+      set({ speaking: false, voiceCtl: null });
+      return toast.error(err.message);
+    }
+    if (ctl.signal.aborted) return;
+    set({ speaking: false, voiceCtl: null });
+    if (spokenQuestion && !actions?.length && get().open) get().toggleListening();
   },
 
   /** Ask the server to check and describe the changes proposed in message `i`. */
@@ -146,7 +214,7 @@ export const useChat = create((set, get) => ({
   },
 
   stop: () => get().controller?.abort(),
-  clear: () => (get().controller?.abort(), set({ messages: [] })),
+  clear: () => (get().controller?.abort(), get().stopVoice(), set({ messages: [] })),
 }));
 
 /** What the model sees: plain text, plus a note on what happened to changes it proposed. */
@@ -187,6 +255,14 @@ export function ChatSheet() {
       .catch((e) => toast.error(e.message));
   }, [open]);
 
+  // voice uses the provider's audio models when they're set
+  useEffect(() => {
+    if (settings) useChat.setState({ voiceSettings: { sttModel: settings.sttModel || '', ttsModel: settings.ttsModel || '' } });
+  }, [settings]);
+  useEffect(() => {
+    if (!open) useChat.getState().stopVoice();
+  }, [open]);
+
   const setup = settings && (!settings.configured || editing);
   const host = (() => {
     try {
@@ -205,6 +281,7 @@ export function ChatSheet() {
       header={
         settings?.configured && (
           <>
+            {!setup && <ReadAloudToggle />}
             {hasMessages && !setup && <IconButton label="New conversation" onClick={() => useChat.getState().clear()}><RotateCcw className="size-4" /></IconButton>}
             {setup ? (
               <IconButton label="Back to chat" onClick={() => setEditing(false)}>
@@ -308,8 +385,9 @@ const ERROR_TITLES = {
   unreachable: 'Can’t reach the AI provider',
   offline: 'Task Tracker isn’t responding',
   empty: 'Empty answer',
+  no_voice: 'Voice isn’t set up',
 };
-const FIX_IN_SETTINGS = ['setup', 'auth', 'not_found', 'bad_url'];
+const FIX_IN_SETTINGS = ['setup', 'auth', 'not_found', 'bad_url', 'no_voice'];
 
 /** A failed reply: a plain title, a plain explanation, and the obvious next step. */
 function ErrorNotice({ error, onSettings }) {
@@ -440,9 +518,48 @@ function Proposal({ index, proposal: p }) {
   );
 }
 
+function ReadAloudToggle() {
+  const on = useChat((s) => s.readAloud);
+  const speaking = useChat((s) => s.speaking);
+  const Icon = on ? Volume2 : VolumeX;
+  return (
+    <IconButton
+      label={speaking ? 'Stop reading' : on ? 'Read answers aloud: on' : 'Read answers aloud: off'}
+      aria-pressed={on}
+      onClick={() => (speaking ? useChat.getState().stopVoice() : useChat.getState().setReadAloud(!on))}
+      className={cx(on && 'text-accent', speaking && 'animate-pulse')}
+    >
+      <Icon className="size-4" />
+    </IconButton>
+  );
+}
+
+const voiceInput = canRecord || hasBrowserListening;
+
+/** Mic button: tap to speak, tap again to stop. The ring follows your voice level. */
+function MicButton({ disabled }) {
+  const listening = useChat((s) => s.listening);
+  const level = useChat((s) => s.level);
+  if (!voiceInput) return null;
+  return (
+    <IconButton
+      label={listening ? 'Stop listening' : 'Speak (voice)'}
+      aria-pressed={listening}
+      disabled={disabled}
+      onClick={() => useChat.getState().toggleListening()}
+      className={cx('relative', listening ? 'bg-danger/12 text-danger hover:bg-danger/20 hover:text-danger' : '')}
+    >
+      {listening && <span aria-hidden className="absolute inset-0 rounded-[inherit] ring-2 ring-danger/50 transition-transform" style={{ transform: `scale(${1 + Math.min(level * 4, 0.45)})` }} />}
+      {listening ? <Square className="size-3 fill-current" /> : <Mic className="size-4" />}
+    </IconButton>
+  );
+}
+
 function Composer({ streaming }) {
   const [text, setText] = useState('');
   const ref = useRef(null);
+  const listening = useChat((s) => s.listening);
+  const interim = useChat((s) => s.interim);
 
   useEffect(() => {
     ref.current?.focus();
@@ -461,7 +578,8 @@ function Composer({ streaming }) {
         <textarea
           ref={ref}
           rows={1}
-          value={text}
+          value={listening ? interim : text}
+          readOnly={listening}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -469,16 +587,17 @@ function Composer({ streaming }) {
               submit();
             }
           }}
-          placeholder="Ask about your tasks…"
+          placeholder={listening ? 'Listening… speak now' : voiceInput ? 'Ask about your tasks, or tap the mic…' : 'Ask about your tasks…'}
           aria-label="Message"
           className="max-h-40 min-h-[28px] flex-1 resize-none bg-transparent py-1 text-[13.5px] text-fg outline-none [field-sizing:content] placeholder:text-faint"
         />
+        <MicButton disabled={streaming} />
         {streaming ? (
           <IconButton label="Stop" onClick={() => useChat.getState().stop()} className="bg-hover text-fg">
             <Square className="size-3.5 fill-current" />
           </IconButton>
         ) : (
-          <IconButton label="Send (Enter)" onClick={submit} disabled={!text.trim()} className="bg-accent text-accent-fg hover:bg-accent hover:text-accent-fg hover:brightness-110">
+          <IconButton label="Send (Enter)" onClick={submit} disabled={!text.trim() || listening} className="bg-accent text-accent-fg hover:bg-accent hover:text-accent-fg hover:brightness-110">
             <ArrowUp className="size-4" />
           </IconButton>
         )}
@@ -493,6 +612,9 @@ function ProviderForm({ settings, onChange, onSaved, onBack }) {
   const [baseUrl, setBaseUrl] = useState(settings.baseUrl);
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState(settings.model);
+  const [sttModel, setSttModel] = useState(settings.sttModel || '');
+  const [ttsModel, setTtsModel] = useState(settings.ttsModel || '');
+  const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice || '');
   const [models, setModels] = useState([]);
   const [busy, setBusy] = useState(null); // 'models' | 'save'
 
@@ -518,7 +640,7 @@ function ProviderForm({ settings, onChange, onSaved, onBack }) {
     e.preventDefault();
     setBusy('save');
     try {
-      const s = await request('PATCH', '/api/settings/llm', { baseUrl, model, ...(apiKey ? { apiKey } : {}) });
+      const s = await request('PATCH', '/api/settings/llm', { baseUrl, model, sttModel, ttsModel, ttsVoice, ...(apiKey ? { apiKey } : {}) });
       setApiKey('');
       onSaved(s);
     } catch (err) {
@@ -590,6 +712,24 @@ function ProviderForm({ settings, onChange, onSaved, onBack }) {
           </Button>
         </div>
       </Field>
+
+      <fieldset className="space-y-3 rounded-xl border border-line p-3.5">
+        <legend className="px-1 text-[12px] font-medium text-muted">Voice (optional)</legend>
+        <p className="text-[11.5px] leading-relaxed text-faint">
+          Leave these empty to use your browser’s built-in speech. Note that some browsers (like Chrome) send what you say to their own speech service; a model on your provider, or a local one, keeps it between you and that provider.
+        </p>
+        <Field label="Speech-to-text model" hint="e.g. whisper-1. Turns what you say into a message.">
+          <input list="tt-models" value={sttModel} onChange={(e) => setSttModel(e.target.value)} placeholder="Browser speech recognition" className={inputCls} />
+        </Field>
+        <div className="grid grid-cols-[1fr_120px] gap-2">
+          <Field label="Voice model" hint="e.g. tts-1. Reads answers aloud.">
+            <input list="tt-models" value={ttsModel} onChange={(e) => setTtsModel(e.target.value)} placeholder="Browser voice" className={inputCls} />
+          </Field>
+          <Field label="Voice">
+            <input value={ttsVoice} onChange={(e) => setTtsVoice(e.target.value)} placeholder="alloy" disabled={!ttsModel} className={cx(inputCls, 'disabled:opacity-50')} />
+          </Field>
+        </div>
+      </fieldset>
 
       <div className="flex items-center justify-end gap-2 pt-1">
         {onBack && (

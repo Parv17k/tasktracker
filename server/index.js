@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from './db.js';
 import { startReminders } from './reminders.js';
-import { listModels, streamChat } from './chat.js';
+import { listModels, speak, streamChat, transcribe } from './chat.js';
 import * as actions from './actions.js';
 
 const PORT = Number(process.env.PORT) || 1717;
@@ -103,6 +103,14 @@ app.post('/api/push/test', async () => reminders.test());
 app.get('/api/settings/llm', async () => store.getLlmSettings());
 app.patch('/api/settings/llm', async (req) => store.updateLlmSettings(req.body));
 app.get('/api/chat/models', async () => ({ models: await listModels() }));
+// voice: recordings arrive as raw audio; replies can be read aloud by the provider
+app.addContentTypeParser(/^audio\//, { parseAs: 'buffer', bodyLimit: 25 * 1024 * 1024 }, (req, body, done) => done(null, body));
+app.post('/api/chat/transcribe', async (req) => transcribe(req.body, req.headers['content-type']));
+app.post('/api/chat/speech', async (req, reply) => {
+  const { audio, contentType } = await speak(req.body?.text);
+  return reply.type(contentType).header('Cache-Control', 'no-store').send(audio);
+});
+
 // changes proposed by the assistant: describe them for approval, then apply the approved ones
 app.post('/api/chat/actions/preview', async (req) => ({ items: actions.preview(req.body?.actions) }));
 app.post('/api/chat/actions/apply', async (req) => actions.apply(req.body?.actions));
