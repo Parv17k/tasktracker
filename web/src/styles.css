@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/nunito';
 @import '@fontsource-variable/fraunces';
 @import '@fontsource-variable/newsreader';
 @import '@fontsource-variable/jetbrains-mono';
@@ -315,6 +316,75 @@
   background: #39ff6a;
   color: #000;
   text-shadow: none;
+}
+
+[data-theme='bubblegum'] {
+  color-scheme: light;
+  --bg: #fff0f6;
+  --bg-image: none;
+  --surface: #ffe4ef;
+  --card: #ffffff;
+  --text: #4a1d38;
+  --muted: #8a5272;
+  --faint: #c58fae;
+  --border: #fbd0e3;
+  --border-strong: #f2a9c9;
+  --hover: #ffdbea;
+  --accent: #c92f7d;
+  --accent-fg: #ffffff;
+  --accent-soft: #ffd3e7;
+  --danger: #d6336c;
+  --warn: #9e5210;
+  --ok: #2b7d5c;
+  --note: #fff6d9;
+  --font-display: 'Nunito Variable', system-ui, sans-serif;
+  --font-body: 'Nunito Variable', system-ui, sans-serif;
+  --radius: 16px;
+  --shadow-card: 0 1px 2px rgba(224, 64, 143, 0.08), 0 2px 6px -2px rgba(224, 64, 143, 0.1);
+  --shadow-lift: 0 20px 40px -14px rgba(224, 64, 143, 0.4);
+  --shadow-pop: 0 16px 44px -12px rgba(160, 40, 100, 0.3);
+  --dot-l: 0.7;
+  --dot-c: 0.13;
+}
+
+[data-theme='bubblegum'] .font-display {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Grayscale: no hue anywhere except a muted red for overdue — nothing competes with the tasks */
+[data-theme='grayscale'] {
+  color-scheme: light;
+  --bg: #e6e6e6;
+  --bg-image: none;
+  --surface: #dedede;
+  --card: #f2f2f2;
+  --text: #262626;
+  --muted: #5e5e5e;
+  --faint: #969696;
+  --border: #d2d2d2;
+  --border-strong: #b5b5b5;
+  --hover: #d8d8d8;
+  --accent: #3a3a3a;
+  --accent-fg: #f2f2f2;
+  --accent-soft: #d0d0d0;
+  --danger: #9a4a4a;
+  --warn: #4a4a4a;
+  --ok: #4a4a4a;
+  --note: #ececec;
+  --font-display: 'Inter Variable', system-ui, sans-serif;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --radius: 6px;
+  --shadow-card: 0 1px 1px rgba(0, 0, 0, 0.05);
+  --shadow-lift: 0 16px 32px -12px rgba(0, 0, 0, 0.25);
+  --shadow-pop: 0 12px 32px -10px rgba(0, 0, 0, 0.2);
+  --dot-l: 0.55;
+  --dot-c: 0;
+}
+
+[data-theme='grayscale'] .font-display {
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
 
 /* column color dots: hue per name, lightness/chroma per theme */

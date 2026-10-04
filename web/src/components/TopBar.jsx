@@ -154,9 +154,9 @@ function ThemePicker() {
           </IconButton>
         </PopoverTrigger>
       </Tip>
-      <PopoverContent className="w-[420px] p-3">
+      <PopoverContent className="max-h-[min(85vh,640px)] w-[min(94vw,600px)] overflow-y-auto p-3">
         <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wider text-faint">Theme</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {THEMES.map((t) => {
             const [bg, card, ink, accent] = t.swatch;
             return (
