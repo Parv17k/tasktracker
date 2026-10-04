@@ -234,10 +234,11 @@ export function TaskSheet() {
 
   useEffect(() => setConfirmDelete(false), [selectedId]);
 
-  // the task disappeared (archived/deleted elsewhere) — close
+  // the task disappeared (archived/deleted elsewhere) — close; wait for the board to load first
+  const loaded = useBoard((s) => s.loaded);
   useEffect(() => {
-    if (selectedId != null && !task) select(null);
-  }, [selectedId, task, select]);
+    if (loaded && selectedId != null && !task) select(null);
+  }, [loaded, selectedId, task, select]);
 
   return (
     <Sheet

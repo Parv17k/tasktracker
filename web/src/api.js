@@ -12,8 +12,14 @@ async function request(method, url, body) {
 }
 
 export const api = {
-  board: () => request('GET', '/api/board'),
-  archived: () => request('GET', '/api/tasks?archived=true&limit=500'),
+  home: () => request('GET', '/api/home'),
+  board: (projectId) => request('GET', `/api/projects/${projectId}/board`),
+  archived: (projectId) => request('GET', `/api/tasks?archived=true&limit=500&project=${projectId}`),
+
+  createProject: (body) => request('POST', '/api/projects', body),
+  updateProject: (id, patch) => request('PATCH', `/api/projects/${id}`, patch),
+  moveProject: (id, index) => request('POST', `/api/projects/${id}/move`, { index }),
+  deleteProject: (id) => request('DELETE', `/api/projects/${id}`),
 
   createTask: (body) => request('POST', '/api/tasks', body),
   updateTask: (id, patch) => request('PATCH', `/api/tasks/${id}`, patch),

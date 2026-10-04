@@ -20,7 +20,7 @@ Zero setup. One command. Your data never leaves your machine.
 
 <br />
 
-<img src="docs/screenshots/board-paper.png" alt="Task Tracker board in the Paper theme" width="100%" />
+<img src="docs/screenshots/home.png" alt="Task Tracker home page with every project at a glance" width="100%" />
 
 </div>
 
@@ -30,6 +30,7 @@ Zero setup. One command. Your data never leaves your machine.
 
 Most task apps are either cloud-hosted and heavy, or plain text and bare. Task Tracker sits in between:
 
+- 🗂️ **Every project at a glance.** A home page shows each project's tasks by status, what's overdue, and what's coming up across all of them.
 - 🧘 **Low cognitive load.** Four columns, one click to open a card, no Save buttons. Everything autosaves.
 - ⚡ **Fast.** One SQLite query loads the whole board in about 1 ms, and the UI updates optimistically, so nothing waits on the network.
 - 🔌 **Built for agents.** A first-class [MCP](https://modelcontextprotocol.io) server lets Claude, Cursor or any MCP client read, create, move and complete your tasks, and you watch it happen live in the browser.
@@ -48,6 +49,18 @@ npm start        # → http://localhost:1717
 That's it. No database to install and no config files. SQLite is built into Node 22.13+, so there's nothing native to compile either.
 
 ## Features
+
+### 🗂️ Projects and a home page
+
+Each project gets its own board. The home page shows each one in a single glance:
+
+- **Totals and status breakdown**: how many tasks, and how many are in Open, In Progress, Follow-up, Done or your own columns
+- **Progress ring**, overdue and due-this-week counts, and when the project was last touched
+- **Coming up**: everything due in the next 7 days across *all* projects; click a card to open that task
+- Create, edit, reorder, archive or delete projects. New projects start with the four default columns, or copy another project's columns
+- Jump between projects from the switcher in each board's title
+
+<img src="docs/screenshots/board-paper.png" alt="A project board in the Paper theme" width="100%" />
 
 <table>
 <tr>
@@ -139,19 +152,21 @@ claude mcp add tasktracker -- node /absolute/path/to/tasktracker/mcp/index.js
 
 Then just ask:
 
-> *"What's overdue on my board?"*
+> *"What's overdue across all my projects?"*
 > *"Break task #3 into subtasks and move it to In Progress."*
 > *"Log what you just did on #12 and mark it complete."*
 
 <details>
-<summary><b>All 14 MCP tools</b></summary>
+<summary><b>All 16 MCP tools</b></summary>
 
 | Tool | What it does |
 | --- | --- |
-| `get_board` | Overview of every column and task. A good first call |
-| `list_tasks` | Filter by column, text, `due_within_days`, `overdue`, archived |
+| `list_projects` | Every project with task counts per column and deadlines. A good first call |
+| `create_project` | New project with its own board |
+| `get_board` | Columns and tasks of one project (`project: "website"`, fuzzy) |
+| `list_tasks` | Search across all projects or one: column, text, `due_within_days`, `overdue`, archived |
 | `get_task` | Full details, including subtask ids |
-| `create_task` | Title, description, note, column, priority, due date, subtasks |
+| `create_task` | Project, column, title, description, note, priority, due date, subtasks |
 | `update_task` | Change any field (`due: ""` clears the deadline) |
 | `move_task` | Move by column name (fuzzy: `"in prog"` works) or id |
 | `complete_task` | Move to the done column, optionally appending a summary |
@@ -161,7 +176,7 @@ Then just ask:
 | `update_subtask` | Check, uncheck or rename a subtask |
 | `delete_subtask` | Remove a subtask |
 | `track_time` | Start or stop the time-spent timer |
-| `list_columns` | Columns with ids, hidden flags and the done column |
+| `list_columns` | A project's columns with ids, hidden flags and the done column |
 
 </details>
 
@@ -180,7 +195,7 @@ flowchart LR
     subgraph node["&nbsp;⚙️ Node.js&nbsp;"]
         direction TB
         API["⚡ <b>Fastify API</b><br/><small>server/index.js · REST + SSE</small>"]
-        MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 14 tools</small>"]
+        MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 16 tools</small>"]
         CORE["🧠 <b>Shared data layer</b><br/><small>server/db.js · rules &amp; validation</small>"]
         WATCH["👀 <b>Change watcher</b><br/><small>PRAGMA data_version</small>"]
     end
@@ -265,8 +280,12 @@ sequenceDiagram
 
 | Method | Endpoint | |
 | --- | --- | --- |
-| `GET` | `/api/board` | All columns and active tasks, with subtasks |
-| `GET` | `/api/tasks?q=&column=&overdue=&dueWithinDays=&archived=` | Search and filter |
+| `GET` | `/api/home` | Every project with stats, plus tasks due soon across projects |
+| `GET` / `POST` | `/api/projects` | List or create projects |
+| `GET` | `/api/projects/:id/board` | A project's columns and active tasks, with subtasks |
+| `PATCH` / `DELETE` | `/api/projects/:id` | Edit, archive or delete a project |
+| `POST` | `/api/projects/:id/move` | `{ index }` to reorder |
+| `GET` | `/api/tasks?project=&q=&column=&overdue=&dueWithinDays=&archived=` | Search and filter |
 | `POST` | `/api/tasks` | Create |
 | `PATCH` | `/api/tasks/:id` | Update fields, archive or restore |
 | `POST` | `/api/tasks/:id/move` | `{ columnId, index }` |
@@ -274,7 +293,7 @@ sequenceDiagram
 | `POST` | `/api/tasks/:id/timer/start` · `/stop` | Time tracking |
 | `POST` | `/api/tasks/:id/subtasks` | Add a subtask |
 | `PATCH` / `DELETE` | `/api/subtasks/:id` | Update or delete a subtask |
-| `POST` / `PATCH` / `DELETE` | `/api/columns[/:id]` | Manage columns (`DELETE ?moveTo=<id>`) |
+| `POST` / `PATCH` / `DELETE` | `/api/columns[/:id]` | Manage columns (`POST { projectId, … }`, `DELETE ?moveTo=<id>`) |
 | `GET` | `/api/events` | Server-Sent Events stream |
 
 </details>

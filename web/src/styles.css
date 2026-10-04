@@ -303,7 +303,7 @@
   font-size: 13px;
   text-shadow: 0 0 6px rgba(57, 255, 106, 0.35);
 }
-[data-theme='terminal'] .font-display::before {
+[data-theme='terminal'] :is(h1, h2, h3).font-display::before {
   content: '> ';
   opacity: 0.6;
 }
@@ -433,6 +433,29 @@
 [data-color='violet'] { --hue: 300; }
 [data-color] {
   --col: oklch(var(--dot-l) calc(var(--dot-c) * var(--dot-c-scale, 1)) var(--hue));
+}
+
+/* Stronger variant for charts (status bars, progress). Values validated for CVD separation and
+   contrast against each theme's surface: L 0.56 on light themes, 0.65 on dark, chroma 0.13. */
+:root {
+  --bar-l: 0.56;
+  --bar-c: 0.13;
+}
+[data-theme='midnight'],
+[data-theme='espresso'],
+[data-theme='graphite'],
+[data-theme='terminal'] {
+  --bar-l: 0.65;
+}
+[data-color] {
+  --bar: oklch(var(--bar-l) calc(var(--bar-c) * var(--dot-c-scale, 1)) var(--hue));
+}
+/* Grayscale themes have no hue, so segments step through lightness; the legend always names them. */
+[data-theme='grayscale'] [data-seg] {
+  --bar: oklch(calc(0.3 + var(--seg) * 0.11) 0 0);
+}
+[data-theme='grayscale-dark'] [data-seg] {
+  --bar: oklch(calc(0.93 - var(--seg) * 0.11) 0 0);
 }
 
 /* ---------------- base ---------------- */

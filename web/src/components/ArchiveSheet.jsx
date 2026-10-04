@@ -7,6 +7,7 @@ import { Button, ColorDot, IconButton, Sheet } from './ui';
 
 export function ArchiveSheet({ open, onOpenChange }) {
   const columns = useBoard((s) => s.columns);
+  const projectId = useBoard((s) => s.projectId);
   const { restoreTask } = useBoard.getState();
   const [items, setItems] = useState(null);
   const [query, setQuery] = useState('');
@@ -15,10 +16,10 @@ export function ArchiveSheet({ open, onOpenChange }) {
     if (!open) return;
     setItems(null);
     api
-      .archived()
+      .archived(projectId)
       .then(setItems)
       .catch((e) => toast.error(e.message));
-  }, [open]);
+  }, [open, projectId]);
 
   const shown = (items || []).filter((t) => !query || t.title.toLowerCase().includes(query.toLowerCase()));
 

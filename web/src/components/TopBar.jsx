@@ -1,8 +1,9 @@
-import { forwardRef, useMemo } from 'react';
-import { Archive, Check, Eye, EyeOff, Paintbrush, Plus, Search, X } from 'lucide-react';
+import { forwardRef, useMemo, useState } from 'react';
+import { Archive, Check, ChevronDown, Eye, EyeOff, LayoutGrid, Paintbrush, Plus, Search, X } from 'lucide-react';
 import { dueInfo } from '../../../shared/due.js';
 import { useBoard } from '../store';
 import { THEMES } from '../themes';
+import { navigate, projectPath } from '../router';
 import { Button, ColorDot, cx, IconButton, Popover, PopoverContent, PopoverTrigger, Tip } from './ui';
 
 export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
@@ -33,9 +34,13 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-3 px-6 pb-4 pt-5">
       <div className="flex items-center gap-3">
-        <Logo />
+        <Tip label="All projects">
+          <button type="button" aria-label="All projects" onClick={() => navigate('/')} className="rounded-[10px] transition-transform hover:scale-105 active:scale-95">
+            <Logo />
+          </button>
+        </Tip>
         <div className="leading-tight">
-          <h1 className="font-display text-[22px] text-fg">Task Tracker</h1>
+          <ProjectSwitcher />
           <p className="text-[12px] text-muted">
             {stats.open} open
             {stats.overdue > 0 && <span className="text-danger"> · {stats.overdue} overdue</span>}
@@ -105,8 +110,70 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
   );
 });
 
+/** Current project name; opens a list to jump to another project or back home. */
+function ProjectSwitcher() {
+  const project = useBoard((s) => s.project);
+  const projects = useBoard((s) => s.projects);
+  const [open, setOpen] = useState(false);
+  const active = useMemo(() => projects.filter((p) => !p.archived), [projects]);
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) useBoard.getState().loadHome();
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button type="button" className="group -ml-1 flex max-w-[50vw] items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-hover">
+          <span className="text-[20px] leading-none">{project?.icon}</span>
+          <h1 className="font-display truncate text-[22px] text-fg">{project?.name ?? ' '}</h1>
+          <ChevronDown className="size-4 shrink-0 text-faint transition-transform group-data-[state=open]:rotate-180" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-1.5">
+        <button
+          type="button"
+          onClick={() => (setOpen(false), navigate('/'))}
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-muted hover:bg-hover hover:text-fg"
+        >
+          <LayoutGrid className="size-4" /> All projects
+        </button>
+        <div className="my-1 h-px bg-line" />
+        <div className="max-h-[50vh] overflow-y-auto">
+          {active.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => (setOpen(false), navigate(projectPath(p.id)))}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-hover"
+            >
+              <span className="w-5 text-center text-[16px] leading-none">{p.icon}</span>
+              <span className="min-w-0 flex-1 truncate">{p.name}</span>
+              <span className="text-[11px] tabular-nums text-faint">{p.stats.open}</span>
+              {p.id === project?.id && <Check className="size-3.5 text-accent" />}
+            </button>
+          ))}
+        </div>
+        <div className="my-1 h-px bg-line" />
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            useBoard.setState({ newProjectOpen: true });
+            navigate('/');
+          }}
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-muted hover:bg-hover hover:text-fg"
+        >
+          <Plus className="size-4" /> New project
+        </button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** Brand mark (see docs/brand), tinted with the active theme's accent. */
-function Logo() {
+export function Logo() {
   return (
     <svg viewBox="0 0 64 64" className="size-9 shrink-0 drop-shadow-sm" role="img" aria-label="TaskTracker">
       <rect width="64" height="64" rx="15" fill="var(--accent)" />
@@ -147,7 +214,7 @@ function HiddenColumns() {
   );
 }
 
-function ThemePicker() {
+export function ThemePicker() {
   const theme = useBoard((s) => s.theme);
   const setTheme = useBoard((s) => s.setTheme);
   return (

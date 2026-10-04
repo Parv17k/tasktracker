@@ -112,16 +112,40 @@ function migrate() {
       db.exec('PRAGMA user_version = 1');
     });
   }
+  if (user_version < 2) {
+    // v2: projects — every column belongs to a project; the existing board becomes the first one
+    tx(() => {
+      db.exec(`
+        CREATE TABLE projects (
+          id          INTEGER PRIMARY KEY,
+          name        TEXT    NOT NULL,
+          icon        TEXT    NOT NULL DEFAULT '📋',
+          color       TEXT    NOT NULL DEFAULT 'blue',
+          description TEXT    NOT NULL DEFAULT '',
+          position    REAL    NOT NULL,
+          archived    INTEGER NOT NULL DEFAULT 0,
+          created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+          updated_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
+        ALTER TABLE columns ADD COLUMN project_id INTEGER REFERENCES projects(id);
+        CREATE INDEX columns_project ON columns(project_id, position);
+      `);
+      const pid = q('INSERT INTO projects (name, icon, color, position) VALUES (?, ?, ?, ?)').run('My Tasks', '✅', 'blue', 1024).lastInsertRowid;
+      q('UPDATE columns SET project_id = ?').run(pid);
+      db.exec('PRAGMA user_version = 2');
+    });
+  }
 }
 
+const DEFAULT_COLUMNS = [
+  ['Open', 'blue', 0],
+  ['In Progress', 'amber', 0],
+  ['Follow-up', 'violet', 0],
+  ['Done', 'green', 1],
+];
+
 function seed() {
-  const cols = [
-    ['Open', 'blue', 0],
-    ['In Progress', 'amber', 0],
-    ['Follow-up', 'violet', 0],
-    ['Done', 'green', 1],
-  ];
-  const ids = cols.map(([name, color, isDone], i) =>
+  const ids = DEFAULT_COLUMNS.map(([name, color, isDone], i) =>
     Number(q('INSERT INTO columns (name, color, position, is_done) VALUES (?, ?, ?, ?)').run(name, color, (i + 1) * 1024, isDone).lastInsertRowid)
   );
   const inDays = (n) => localDate(new Date(Date.now() + n * 86400000));
@@ -144,7 +168,23 @@ migrate();
 // ---------- mappers ----------
 
 function mapColumn(r) {
-  return r && { id: r.id, name: r.name, color: r.color, position: r.position, hidden: !!r.hidden, isDone: !!r.is_done };
+  return r && { id: r.id, projectId: r.project_id, name: r.name, color: r.color, position: r.position, hidden: !!r.hidden, isDone: !!r.is_done };
+}
+
+function mapProject(r) {
+  return (
+    r && {
+      id: r.id,
+      name: r.name,
+      icon: r.icon,
+      color: r.color,
+      description: r.description,
+      position: r.position,
+      archived: !!r.archived,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }
+  );
 }
 
 function mapSubtask(r) {
@@ -215,8 +255,10 @@ function parseDue(v) {
 
 // ---------- columns ----------
 
-export function listColumns() {
-  return q('SELECT * FROM columns ORDER BY position').all().map(mapColumn);
+/** Columns of one project, or of every project when `projectId` is omitted. */
+export function listColumns(projectId) {
+  if (projectId == null) return q('SELECT * FROM columns ORDER BY project_id, position').all().map(mapColumn);
+  return q('SELECT * FROM columns WHERE project_id = ? ORDER BY position').all(Number(projectId)).map(mapColumn);
 }
 
 export function getColumn(id) {
@@ -225,22 +267,30 @@ export function getColumn(id) {
   return c;
 }
 
-/** Resolve a column by numeric id or (case/punctuation-insensitive) name. */
-export function resolveColumn(ref) {
+const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** Find by exact, then prefix, then substring match on a punctuation-insensitive name. */
+function fuzzyFind(items, ref) {
+  const want = norm(ref);
+  return items.find((x) => norm(x.name) === want) || items.find((x) => norm(x.name).startsWith(want)) || items.find((x) => norm(x.name).includes(want));
+}
+
+/** Resolve a column by numeric id or (case/punctuation-insensitive) name within a project. */
+export function resolveColumn(ref, projectId = defaultProjectId()) {
   if (ref == null || ref === '') return null;
   if (typeof ref === 'number' || /^\d+$/.test(String(ref))) return getColumn(Number(ref));
-  const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const want = norm(String(ref));
-  const cols = listColumns();
-  const hit = cols.find((c) => norm(c.name) === want) || cols.find((c) => norm(c.name).startsWith(want)) || cols.find((c) => norm(c.name).includes(want));
+  const cols = listColumns(projectId);
+  const hit = fuzzyFind(cols, ref);
   if (!hit) throw new AppError(404, `No column matching "${ref}". Columns: ${cols.map((c) => c.name).join(', ')}`);
   return hit;
 }
 
-export function createColumn({ name, color = 'slate', isDone = false } = {}) {
+export function createColumn({ projectId, name, color = 'slate', isDone = false } = {}) {
   return tx(() => {
-    const { m } = q('SELECT COALESCE(MAX(position), 0) AS m FROM columns').get();
-    const id = q('INSERT INTO columns (name, color, position, is_done) VALUES (?, ?, ?, ?)').run(
+    const pid = projectId != null ? getProject(projectId).id : defaultProjectId();
+    const { m } = q('SELECT COALESCE(MAX(position), 0) AS m FROM columns WHERE project_id = ?').get(pid);
+    const id = q('INSERT INTO columns (project_id, name, color, position, is_done) VALUES (?, ?, ?, ?, ?)').run(
+      pid,
       cleanText(name, 'name', { max: 60, required: true }),
       COLORS.includes(color) ? color : 'slate',
       m + 1024,
@@ -263,7 +313,7 @@ export function updateColumn(id, patch = {}) {
     if (patch.isDone !== undefined) sets.push('is_done = ?'), vals.push(patch.isDone ? 1 : 0);
     if (patch.hidden !== undefined) {
       if (patch.hidden && !col.hidden) {
-        const { n } = q('SELECT COUNT(*) AS n FROM columns WHERE hidden = 0').get();
+        const { n } = q('SELECT COUNT(*) AS n FROM columns WHERE hidden = 0 AND project_id = ?').get(col.projectId);
         if (n <= 1) throw new AppError(400, 'At least one column must stay visible');
       }
       sets.push('hidden = ?'), vals.push(patch.hidden ? 1 : 0);
@@ -273,14 +323,14 @@ export function updateColumn(id, patch = {}) {
   });
 }
 
-/** Move a column to `index` among all columns (0-based). */
+/** Move a column to `index` among its project's columns (0-based). */
 export function moveColumn(id, index) {
   return tx(() => {
     const col = getColumn(id);
-    const others = listColumns().filter((c) => c.id !== col.id);
+    const others = listColumns(col.projectId).filter((c) => c.id !== col.id);
     others.splice(Math.max(0, Math.min(index, others.length)), 0, col);
     others.forEach((c, i) => q('UPDATE columns SET position = ? WHERE id = ?').run((i + 1) * 1024, c.id));
-    return listColumns();
+    return listColumns(col.projectId);
   });
 }
 
@@ -291,7 +341,7 @@ export function moveColumn(id, index) {
 export function deleteColumn(id, { moveTo } = {}) {
   return tx(() => {
     const col = getColumn(id);
-    const remaining = listColumns().filter((c) => c.id !== col.id);
+    const remaining = listColumns(col.projectId).filter((c) => c.id !== col.id);
     if (!remaining.some((c) => !c.hidden)) throw new AppError(400, 'Cannot delete the last visible column');
     const { active, total } = q('SELECT SUM(archived = 0) AS active, COUNT(*) AS total FROM tasks WHERE column_id = ?').get(col.id);
     let target = null;
@@ -316,10 +366,13 @@ export function deleteColumn(id, { moveTo } = {}) {
 
 // ---------- tasks ----------
 
-export function getBoard() {
-  const columns = listColumns();
-  const tasks = withSubtasks(q('SELECT * FROM tasks WHERE archived = 0 ORDER BY column_id, position').all());
-  return { columns, tasks };
+export function getBoard(projectId = defaultProjectId()) {
+  const project = getProject(projectId);
+  const columns = listColumns(project.id);
+  const tasks = withSubtasks(
+    q('SELECT t.* FROM tasks t JOIN columns c ON c.id = t.column_id WHERE t.archived = 0 AND c.project_id = ? ORDER BY t.column_id, t.position').all(project.id)
+  );
+  return { project, columns, tasks };
 }
 
 export function getTask(id) {
@@ -332,9 +385,10 @@ export function getTask(id) {
  * Flexible task listing for the API & MCP.
  * @param {{columnId?: number, query?: string, archived?: boolean|'all', dueWithinDays?: number, overdue?: boolean, limit?: number}} opts
  */
-export function listTasks({ columnId, query, archived = false, dueWithinDays, overdue, limit = 200 } = {}) {
+export function listTasks({ projectId, columnId, query, archived = false, dueWithinDays, overdue, limit = 200 } = {}) {
   const where = [];
   const vals = [];
+  if (projectId != null) where.push('column_id IN (SELECT id FROM columns WHERE project_id = ?)'), vals.push(Number(projectId));
   if (archived !== 'all') where.push('archived = ?'), vals.push(archived ? 1 : 0);
   if (columnId != null) where.push('column_id = ?'), vals.push(Number(columnId));
   if (query) {
@@ -356,15 +410,17 @@ export function listTasks({ columnId, query, archived = false, dueWithinDays, ov
   return withSubtasks(q(sql).all(...vals, Math.min(Number(limit) || 200, 1000)));
 }
 
-function defaultColumnId() {
-  const c = q('SELECT id FROM columns WHERE hidden = 0 AND is_done = 0 ORDER BY position LIMIT 1').get() || q('SELECT id FROM columns WHERE hidden = 0 ORDER BY position LIMIT 1').get();
+function defaultColumnId(projectId = defaultProjectId()) {
+  const c =
+    q('SELECT id FROM columns WHERE project_id = ? AND hidden = 0 AND is_done = 0 ORDER BY position LIMIT 1').get(projectId) ||
+    q('SELECT id FROM columns WHERE project_id = ? AND hidden = 0 ORDER BY position LIMIT 1').get(projectId);
   if (!c) throw new AppError(400, 'No visible column to add the task to');
   return c.id;
 }
 
-export function createTask({ title, description, note, columnId, priority = 'none', dueAt, subtasks = [], placement = 'bottom' } = {}) {
+export function createTask({ title, description, note, projectId, columnId, priority = 'none', dueAt, subtasks = [], placement = 'bottom' } = {}) {
   return tx(() => {
-    const colId = columnId != null ? getColumn(columnId).id : defaultColumnId();
+    const colId = columnId != null ? getColumn(columnId).id : defaultColumnId(projectId != null ? getProject(projectId).id : defaultProjectId());
     if (!PRIORITIES.includes(priority)) throw new AppError(400, `priority must be one of ${PRIORITIES.join(', ')}`);
     const [due, dueHasTime] = parseDue(dueAt);
     const edge =
@@ -412,7 +468,7 @@ export function updateTask(id, patch = {}) {
       if (!patch.archived) {
         // restore to the bottom of its column (or the default column if that one is hidden)
         const col = getColumn(task.columnId);
-        const colId = col.hidden ? defaultColumnId() : col.id;
+        const colId = col.hidden ? defaultColumnId(col.projectId) : col.id;
         const { p } = q('SELECT COALESCE(MAX(position), 0) + 1024 AS p FROM tasks WHERE column_id = ? AND archived = 0').get(colId);
         sets.push('column_id = ?', 'position = ?'), vals.push(colId, p);
       }
@@ -461,7 +517,8 @@ export function moveTask(id, { columnId, index } = {}) {
 
 /** Move to the first done-flagged column. */
 export function completeTask(id) {
-  const done = q('SELECT id FROM columns WHERE is_done = 1 ORDER BY hidden, position LIMIT 1').get();
+  const { projectId } = getColumn(getTask(id).columnId);
+  const done = q('SELECT id FROM columns WHERE project_id = ? AND is_done = 1 ORDER BY hidden, position LIMIT 1').get(projectId);
   if (!done) throw new AppError(400, 'No column is marked as "done". Mark one via its column menu.');
   return moveTask(id, { columnId: done.id, index: 0 });
 }
@@ -503,6 +560,193 @@ export function stopTimer(id) {
       q('UPDATE tasks SET timer_started_at = NULL, time_spent = time_spent + ?, updated_at = ? WHERE id = ?').run(extra, now(), task.id);
     }
     return getTask(task.id);
+  });
+}
+
+// ---------- projects ----------
+
+export function getProject(id) {
+  const p = mapProject(q('SELECT * FROM projects WHERE id = ?').get(Number(id)));
+  if (!p) throw new AppError(404, `Project ${id} not found`);
+  return p;
+}
+
+/** The project used when none is specified: the first active one on the home page. */
+export function defaultProjectId() {
+  const p = q('SELECT id FROM projects ORDER BY archived, position LIMIT 1').get();
+  if (!p) throw new AppError(500, 'No projects exist');
+  return p.id;
+}
+
+/** Resolve a project by numeric id or (case/punctuation-insensitive) name. */
+export function resolveProject(ref) {
+  if (ref == null || ref === '') return getProject(defaultProjectId());
+  if (typeof ref === 'number' || /^\d+$/.test(String(ref))) return getProject(Number(ref));
+  const all = q('SELECT * FROM projects ORDER BY archived, position').all().map(mapProject);
+  const hit = fuzzyFind(all, ref);
+  if (!hit) throw new AppError(404, `No project matching "${ref}". Projects: ${all.map((p) => p.name).join(', ')}`);
+  return hit;
+}
+
+function dueState(t, today, nowIso, weekEnd) {
+  if (!t.due_at) return null;
+  const overdue = t.due_has_time ? t.due_at < nowIso : t.due_at < today;
+  if (overdue) return 'overdue';
+  const day = t.due_has_time ? localDate(new Date(t.due_at)) : t.due_at;
+  if (day === today) return 'today';
+  return day <= weekEnd ? 'week' : 'later';
+}
+
+/** Every project with the numbers the home page shows: per-column counts, deadlines, progress. */
+export function listProjects({ includeArchived = true } = {}) {
+  const projects = q(`SELECT * FROM projects ${includeArchived ? '' : 'WHERE archived = 0'} ORDER BY archived, position`).all().map(mapProject);
+  const columns = listColumns();
+  const colById = new Map(columns.map((c) => [c.id, c]));
+  const tasks = q('SELECT column_id, due_at, due_has_time, completed_at, updated_at FROM tasks WHERE archived = 0').all();
+  const today = localDate();
+  const nowIso = now();
+  const weekEnd = localDate(new Date(Date.now() + 7 * 86400000));
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+
+  const stats = new Map(
+    projects.map((p) => [
+      p.id,
+      {
+        total: 0,
+        done: 0,
+        overdue: 0,
+        dueToday: 0,
+        dueWeek: 0,
+        completedThisWeek: 0,
+        lastActivity: p.updatedAt,
+        byColumn: new Map(columns.filter((c) => c.projectId === p.id).map((c) => [c.id, 0])),
+      },
+    ])
+  );
+  for (const t of tasks) {
+    const col = colById.get(t.column_id);
+    const st = col && stats.get(col.projectId);
+    if (!st) continue;
+    st.total++;
+    st.byColumn.set(col.id, (st.byColumn.get(col.id) || 0) + 1);
+    if (t.updated_at > st.lastActivity) st.lastActivity = t.updated_at;
+    if (col.isDone) {
+      st.done++;
+      if (t.completed_at && t.completed_at >= weekAgo) st.completedThisWeek++;
+      continue;
+    }
+    const due = dueState(t, today, nowIso, weekEnd);
+    if (due === 'overdue') st.overdue++;
+    if (due === 'today') st.dueToday++;
+    if (due === 'overdue' || due === 'today' || due === 'week') st.dueWeek++;
+  }
+  return projects.map((p) => {
+    const st = stats.get(p.id);
+    return {
+      ...p,
+      stats: {
+        total: st.total,
+        done: st.done,
+        open: st.total - st.done,
+        overdue: st.overdue,
+        dueToday: st.dueToday,
+        dueWeek: st.dueWeek,
+        completedThisWeek: st.completedThisWeek,
+        lastActivity: st.lastActivity,
+        columns: columns
+          .filter((c) => c.projectId === p.id)
+          .map((c) => ({ id: c.id, name: c.name, color: c.color, isDone: c.isDone, hidden: c.hidden, count: st.byColumn.get(c.id) || 0 })),
+      },
+    };
+  });
+}
+
+/** Open tasks due within `days` (overdue included) across every active project, soonest first. */
+export function dueSoon({ days = 7, limit = 12 } = {}) {
+  const until = localDate(new Date(Date.now() + days * 86400000)) + 'T23:59:59.999Z';
+  const rows = q(
+    `SELECT t.*, c.name AS column_name, p.id AS project_id, p.name AS project_name, p.icon AS project_icon, p.color AS project_color
+     FROM tasks t JOIN columns c ON c.id = t.column_id JOIN projects p ON p.id = c.project_id
+     WHERE t.archived = 0 AND p.archived = 0 AND c.is_done = 0 AND c.hidden = 0 AND t.due_at IS NOT NULL AND t.due_at <= ?
+     ORDER BY t.due_at LIMIT ?`
+  ).all(until, Math.min(Number(limit) || 12, 100));
+  return withSubtasks(rows).map((t, i) => ({
+    ...t,
+    columnName: rows[i].column_name,
+    project: { id: rows[i].project_id, name: rows[i].project_name, icon: rows[i].project_icon, color: rows[i].project_color },
+  }));
+}
+
+export function createProject({ name, icon = '📋', color = 'blue', description = '', copyColumnsFrom } = {}) {
+  return tx(() => {
+    const { m } = q('SELECT COALESCE(MAX(position), 0) AS m FROM projects').get();
+    const id = Number(
+      q('INSERT INTO projects (name, icon, color, description, position) VALUES (?, ?, ?, ?, ?)').run(
+        cleanText(name, 'name', { max: 80, required: true }),
+        cleanText(icon, 'icon', { max: 16, required: true }),
+        COLORS.includes(color) ? color : 'blue',
+        cleanText(description, 'description', { max: 280 }),
+        m + 1024
+      ).lastInsertRowid
+    );
+    const template =
+      copyColumnsFrom != null ? listColumns(getProject(copyColumnsFrom).id).map((c) => [c.name, c.color, c.isDone ? 1 : 0, c.hidden ? 1 : 0]) : DEFAULT_COLUMNS.map((c) => [...c, 0]);
+    template.forEach(([colName, colColor, isDone, hidden], i) =>
+      q('INSERT INTO columns (project_id, name, color, position, is_done, hidden) VALUES (?, ?, ?, ?, ?, ?)').run(id, colName, colColor, (i + 1) * 1024, isDone, hidden)
+    );
+    return getProject(id);
+  });
+}
+
+export function updateProject(id, patch = {}) {
+  return tx(() => {
+    const p = getProject(id);
+    const sets = [];
+    const vals = [];
+    if (patch.name !== undefined) sets.push('name = ?'), vals.push(cleanText(patch.name, 'name', { max: 80, required: true }));
+    if (patch.icon !== undefined) sets.push('icon = ?'), vals.push(cleanText(patch.icon, 'icon', { max: 16, required: true }));
+    if (patch.description !== undefined) sets.push('description = ?'), vals.push(cleanText(patch.description, 'description', { max: 280 }));
+    if (patch.color !== undefined) {
+      if (!COLORS.includes(patch.color)) throw new AppError(400, `color must be one of ${COLORS.join(', ')}`);
+      sets.push('color = ?'), vals.push(patch.color);
+    }
+    if (patch.archived !== undefined) {
+      if (patch.archived && !p.archived) {
+        const { n } = q('SELECT COUNT(*) AS n FROM projects WHERE archived = 0').get();
+        if (n <= 1) throw new AppError(400, 'At least one project must stay active');
+      }
+      sets.push('archived = ?'), vals.push(patch.archived ? 1 : 0);
+    }
+    if (sets.length) {
+      sets.push('updated_at = ?'), vals.push(now());
+      q(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`).run(...vals, p.id);
+    }
+    return getProject(p.id);
+  });
+}
+
+/** Move a project to `index` among active projects (0-based). The first one is the default for agents. */
+export function moveProject(id, index) {
+  return tx(() => {
+    const p = getProject(id);
+    const others = q('SELECT id FROM projects WHERE archived = 0 AND id != ? ORDER BY position').all(p.id);
+    others.splice(Math.max(0, Math.min(Number(index), others.length)), 0, { id: p.id });
+    others.forEach((x, i) => q('UPDATE projects SET position = ? WHERE id = ?').run((i + 1) * 1024, x.id));
+    return getProject(p.id);
+  });
+}
+
+/** Permanently delete a project with all its columns, tasks and subtasks. */
+export function deleteProject(id) {
+  return tx(() => {
+    const p = getProject(id);
+    const { n } = q('SELECT COUNT(*) AS n FROM projects WHERE id != ?').get(p.id);
+    if (n === 0) throw new AppError(400, 'Cannot delete the only project');
+    const { tasks } = q('SELECT COUNT(*) AS tasks FROM tasks WHERE column_id IN (SELECT id FROM columns WHERE project_id = ?)').get(p.id);
+    q('DELETE FROM tasks WHERE column_id IN (SELECT id FROM columns WHERE project_id = ?)').run(p.id);
+    q('DELETE FROM columns WHERE project_id = ?').run(p.id);
+    q('DELETE FROM projects WHERE id = ?').run(p.id);
+    return { deleted: p.id, tasksDeleted: tasks };
   });
 }
 

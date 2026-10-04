@@ -7,18 +7,32 @@ import { TopBar } from './components/TopBar';
 import { TaskSheet } from './components/TaskSheet';
 import { ArchiveSheet } from './components/ArchiveSheet';
 import { TipProvider } from './components/ui';
+import Home from './components/Home';
+import { useProjectRoute } from './router';
 
 const isTyping = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
 export default function App() {
   const loaded = useBoard((s) => s.loaded);
   const theme = useBoard((s) => s.theme);
+  const project = useBoard((s) => s.project);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const searchRef = useRef(null);
+  const routeProjectId = useProjectRoute();
+  const onHome = routeProjectId == null;
+
+  // the URL decides what is on screen
+  useEffect(() => {
+    useBoard.getState().openProject(routeProjectId);
+    setArchiveOpen(false);
+  }, [routeProjectId]);
+
+  useEffect(() => {
+    if (project) document.title = `${project.name} · Task Tracker`;
+  }, [project]);
 
   useEffect(() => {
     const { load } = useBoard.getState();
-    load();
     let t;
     // debounce bursts of external changes (e.g. an agent doing several edits)
     return subscribe(() => {
@@ -31,7 +45,14 @@ export default function App() {
     const onKey = (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(document.activeElement)) return;
       const s = useBoard.getState();
-      if (s.selectedId != null || archiveOpen) return;
+      if (s.selectedId != null || archiveOpen || document.querySelector('[role=dialog]')) return;
+      if (onHome) {
+        if (e.key === 'n' || e.key === 'N') {
+          e.preventDefault();
+          useBoard.setState({ newProjectOpen: true });
+        }
+        return;
+      }
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
         const col = s.columns.find((c) => !c.hidden && !c.isDone) || s.columns.find((c) => !c.hidden);
@@ -43,18 +64,24 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [archiveOpen]);
+  }, [archiveOpen, onHome]);
 
   const dark = ['midnight', 'espresso', 'graphite', 'terminal', 'grayscale-dark'].includes(theme);
 
   return (
     <TipProvider>
-      <div className="flex h-full flex-col">
-        <TopBar ref={searchRef} onOpenArchive={() => setArchiveOpen(true)} />
-        <main className="min-h-0 flex-1">{loaded ? <Board /> : <BoardSkeleton />}</main>
-      </div>
-      <TaskSheet />
-      <ArchiveSheet open={archiveOpen} onOpenChange={setArchiveOpen} />
+      {onHome ? (
+        <Home />
+      ) : (
+        <>
+          <div className="flex h-full flex-col">
+            <TopBar ref={searchRef} onOpenArchive={() => setArchiveOpen(true)} />
+            <main className="min-h-0 flex-1">{loaded ? <Board /> : <BoardSkeleton />}</main>
+          </div>
+          <TaskSheet />
+          <ArchiveSheet open={archiveOpen} onOpenChange={setArchiveOpen} />
+        </>
+      )}
       <Toaster
         position="bottom-center"
         theme={dark ? 'dark' : 'light'}

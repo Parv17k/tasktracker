@@ -26,9 +26,16 @@ export const useBoard = create((set, get) => {
   });
 
   return {
+    // current route: null = home page, otherwise the open project's id
+    projectId: null,
+    project: null,
     columns: [],
     tasks: [],
     loaded: false,
+    // home page
+    projects: [],
+    dueSoon: [],
+    homeLoaded: false,
     query: '',
     dueFilter: 'all', // all | overdue | week
     selectedId: null,
@@ -36,14 +43,70 @@ export const useBoard = create((set, get) => {
     quickAddColumn: null,
     theme: document.documentElement.dataset.theme || 'paper',
 
+    /** Reload whatever is on screen: the home page or the open project's board. */
     async load() {
-      if (get().dragging) return;
+      const { projectId, dragging } = get();
+      if (dragging) return;
+      if (projectId == null) return get().loadHome();
       try {
-        const { columns, tasks } = await api.board();
-        if (!get().dragging) set({ columns, tasks, loaded: true });
+        const { project, columns, tasks } = await api.board(projectId);
+        if (!get().dragging && get().projectId === projectId) set({ project, columns, tasks, loaded: true });
       } catch (err) {
+        if (err.status === 404) return get().openProject(null);
         toast.error(`Could not load board: ${err.message}`);
       }
+    },
+
+    async loadHome() {
+      try {
+        const { projects, dueSoon } = await api.home();
+        set({ projects, dueSoon, homeLoaded: true });
+      } catch (err) {
+        toast.error(`Could not load projects: ${err.message}`);
+      }
+    },
+
+    /** Switch views (called by the router). `id` null = home page. */
+    openProject(id) {
+      if (id === get().projectId) return get().load();
+      set({ projectId: id, project: null, columns: [], tasks: [], loaded: false, query: '', dueFilter: 'all', quickAddColumn: null, selectedId: get().pendingSelect ?? null, pendingSelect: null });
+      return get().load();
+    },
+    pendingSelect: null,
+
+    // ---------- projects ----------
+
+    async createProject(data) {
+      const project = await optimistic(null, () => api.createProject(data));
+      get().loadHome();
+      return project;
+    },
+
+    updateProject(id, patch) {
+      return optimistic(
+        (s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)), project: s.project?.id === id ? { ...s.project, ...patch } : s.project }),
+        () => api.updateProject(id, patch),
+        (s, p) => ({ projects: s.projects.map((x) => (x.id === id ? { ...x, ...p } : x)), project: s.project?.id === id ? p : s.project })
+      );
+    },
+
+    /** dir: -1 / +1 among active projects */
+    shiftProject(id, dir) {
+      const active = get().projects.filter((p) => !p.archived);
+      const i = active.findIndex((p) => p.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= active.length) return;
+      const reordered = [...active];
+      [reordered[i], reordered[j]] = [reordered[j], reordered[i]];
+      return optimistic(
+        (s) => ({ projects: [...reordered, ...s.projects.filter((p) => p.archived)] }),
+        () => api.moveProject(id, j)
+      );
+    },
+
+    async deleteProject(id) {
+      await optimistic((s) => ({ projects: s.projects.filter((p) => p.id !== id) }), () => api.deleteProject(id));
+      get().loadHome();
     },
 
     setTheme(theme) {
@@ -148,7 +211,7 @@ export const useBoard = create((set, get) => {
     // ---------- columns ----------
 
     createColumn(data) {
-      return optimistic(null, () => api.createColumn(data), (s, col) => ({ columns: [...s.columns, col] }));
+      return optimistic(null, () => api.createColumn({ ...data, projectId: get().projectId }), (s, col) => ({ columns: [...s.columns, col] }));
     },
 
     updateColumn(id, patch) {

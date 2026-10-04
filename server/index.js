@@ -79,10 +79,20 @@ const id = (req) => Number(req.params.id);
 app.get('/api/health', async () => ({ ok: true }));
 app.get('/api/board', async () => store.getBoard());
 
+app.get('/api/home', async () => ({ projects: store.listProjects(), dueSoon: store.dueSoon({ days: 7, limit: 12 }) }));
+app.get('/api/projects', async () => store.listProjects());
+app.post('/api/projects', async (req, reply) => reply.code(201).send(store.createProject(req.body)));
+app.get('/api/projects/:id/board', async (req) => store.getBoard(id(req)));
+app.patch('/api/projects/:id', async (req) => store.updateProject(id(req), req.body));
+app.post('/api/projects/:id/move', async (req) => store.moveProject(id(req), Number(req.body?.index)));
+app.delete('/api/projects/:id', async (req) => store.deleteProject(id(req)));
+
 app.get('/api/tasks', async (req) => {
-  const { column, q, archived, dueWithinDays, overdue, limit } = req.query;
+  const { project, column, q, archived, dueWithinDays, overdue, limit } = req.query;
+  const projectId = project ? store.resolveProject(project).id : undefined;
   return store.listTasks({
-    columnId: column ? store.resolveColumn(column).id : undefined,
+    projectId,
+    columnId: column ? store.resolveColumn(column, projectId).id : undefined,
     query: q,
     archived: archived === 'all' ? 'all' : archived === 'true',
     dueWithinDays: dueWithinDays != null ? Number(dueWithinDays) : undefined,
@@ -103,7 +113,7 @@ app.post('/api/tasks/:id/subtasks', async (req, reply) => reply.code(201).send(s
 app.patch('/api/subtasks/:id', async (req) => store.updateSubtask(id(req), req.body));
 app.delete('/api/subtasks/:id', async (req) => store.deleteSubtask(id(req)));
 
-app.get('/api/columns', async () => store.listColumns());
+app.get('/api/columns', async (req) => store.listColumns(req.query.project ? store.resolveProject(req.query.project).id : undefined));
 app.post('/api/columns', async (req, reply) => reply.code(201).send(store.createColumn(req.body)));
 app.patch('/api/columns/:id', async (req) => store.updateColumn(id(req), req.body));
 app.post('/api/columns/:id/move', async (req) => store.moveColumn(id(req), Number(req.body?.index)));

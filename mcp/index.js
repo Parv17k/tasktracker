@@ -19,6 +19,14 @@ function columnName(id) {
   }
 }
 
+function projectOf(columnId) {
+  try {
+    return store.getProject(store.getColumn(columnId).projectId);
+  } catch {
+    return null;
+  }
+}
+
 function isDoneColumn(id) {
   try {
     return store.getColumn(id).isDone;
@@ -43,6 +51,7 @@ function taskDetail(t) {
   const running = t.timerStartedAt ? (Date.now() - Date.parse(t.timerStartedAt)) / 1000 : 0;
   const lines = [
     `#${t.id} ${t.title}`,
+    `project: ${projectOf(t.columnId)?.name ?? '?'}`,
     `column: ${columnName(t.columnId)}${t.archived ? ' (archived)' : ''}`,
     `priority: ${t.priority}`,
     `due: ${due ? `${t.dueAt} — ${due.label}` : 'none'}`,
@@ -70,6 +79,9 @@ const tool = (fn) => async (args) => {
 
 const taskId = z.coerce.number().int().positive().describe('Task id (the number after #)');
 const columnRef = z.union([z.string(), z.number()]).describe('Column name (e.g. "In Progress") or id');
+const projectRef = z
+  .union([z.string(), z.number()])
+  .describe('Project name (fuzzy, e.g. "website") or id. Defaults to the first project on the home page.');
 const priority = z.enum(['none', 'low', 'medium', 'high', 'urgent']);
 const due = z.string().describe('Deadline as YYYY-MM-DD (whole day) or an ISO datetime, e.g. 2026-10-05T17:00');
 
@@ -79,13 +91,13 @@ server.registerTool(
   'get_board',
   {
     title: 'Get board overview',
-    description: 'Overview of every visible column and its tasks (id, title, priority, deadline, subtask progress). Start here.',
-    inputSchema: {},
+    description: "Overview of one project's board: every visible column and its tasks (id, title, priority, deadline, subtask progress). Call list_projects first if there are several projects.",
+    inputSchema: { project: projectRef.optional() },
     annotations: { readOnlyHint: true },
   },
-  tool(() => {
-    const { columns, tasks } = store.getBoard();
-    const out = [];
+  tool(({ project }) => {
+    const { project: p, columns, tasks } = store.getBoard(store.resolveProject(project).id);
+    const out = [`# ${p.icon} ${p.name} (project id ${p.id})`, ''];
     for (const c of columns.filter((c) => !c.hidden)) {
       const items = tasks.filter((t) => t.columnId === c.id);
       out.push(`## ${c.name} (id ${c.id}${c.isDone ? ', done column' : ''}) — ${items.length} task(s)`);
@@ -102,9 +114,11 @@ server.registerTool(
   'list_tasks',
   {
     title: 'Find tasks',
-    description: 'Search/filter tasks. Use due_within_days or overdue to find deadlines (completed tasks are excluded from deadline filters).',
+    description:
+      'Search/filter tasks across all projects, or one project. Use due_within_days or overdue to find deadlines (completed tasks are excluded from deadline filters).',
     inputSchema: {
-      column: columnRef.optional(),
+      project: projectRef.optional().describe('Limit to one project (name or id). Omit to search every project.'),
+      column: columnRef.optional().describe('Column name or id (needs project when using a name)'),
       query: z.string().optional().describe('Text to match in title, description, note or subtasks'),
       due_within_days: z.number().min(0).optional().describe('Only open tasks due within this many days (includes overdue)'),
       overdue: z.boolean().optional().describe('Only open tasks that are past their deadline'),
@@ -113,9 +127,11 @@ server.registerTool(
     },
     annotations: { readOnlyHint: true },
   },
-  tool(({ column, query, due_within_days, overdue, include_archived, limit }) => {
+  tool(({ project, column, query, due_within_days, overdue, include_archived, limit }) => {
+    const projectId = project != null ? store.resolveProject(project).id : undefined;
     const tasks = store.listTasks({
-      columnId: column != null ? store.resolveColumn(column).id : undefined,
+      projectId,
+      columnId: column != null ? store.resolveColumn(column, projectId).id : undefined,
       query,
       dueWithinDays: due_within_days,
       overdue,
@@ -123,7 +139,14 @@ server.registerTool(
       limit: limit ?? 100,
     });
     if (!tasks.length) return text('No matching tasks.');
-    return text(tasks.map((t) => `- ${taskLine(t)} — ${columnName(t.columnId)}`).join('\n'));
+    return text(
+      tasks
+        .map((t) => {
+          const p = projectOf(t.columnId);
+          return `- ${taskLine(t)} — ${p ? `${p.name} / ` : ''}${columnName(t.columnId)}`;
+        })
+        .join('\n')
+    );
   })
 );
 
@@ -142,9 +165,10 @@ server.registerTool(
   'create_task',
   {
     title: 'Create task',
-    description: 'Create a task. Defaults to the first open (non-done) column.',
+    description: 'Create a task in a project. Defaults to the first open (non-done) column of the default project.',
     inputSchema: {
       title: z.string().min(1),
+      project: projectRef.optional(),
       description: z.string().optional(),
       note: z.string().optional(),
       column: columnRef.optional(),
@@ -153,17 +177,19 @@ server.registerTool(
       subtasks: z.array(z.string()).optional().describe('Checklist items to create with the task'),
     },
   },
-  tool(({ title, description, note, column, priority, due, subtasks }) => {
+  tool(({ title, project, description, note, column, priority, due, subtasks }) => {
+    const projectId = store.resolveProject(project).id;
     const t = store.createTask({
+      projectId,
       title,
       description,
       note,
       priority,
       dueAt: due,
       subtasks,
-      columnId: column != null ? store.resolveColumn(column).id : undefined,
+      columnId: column != null ? store.resolveColumn(column, projectId).id : undefined,
     });
-    return text(`Created in ${columnName(t.columnId)}:\n${taskDetail(t)}`);
+    return text(`Created in ${projectOf(t.columnId)?.name} / ${columnName(t.columnId)}:\n${taskDetail(t)}`);
   })
 );
 
@@ -188,7 +214,7 @@ server.registerTool(
   'move_task',
   {
     title: 'Move task',
-    description: 'Move a task to another column (e.g. "In Progress", "Follow-up").',
+    description: 'Move a task to another column of its project (e.g. "In Progress", "Follow-up").',
     inputSchema: {
       id: taskId,
       column: columnRef,
@@ -196,7 +222,7 @@ server.registerTool(
     },
   },
   tool(({ id, column, position }) => {
-    const col = store.resolveColumn(column);
+    const col = store.resolveColumn(column, store.getColumn(store.getTask(id).columnId).projectId);
     const t = store.moveTask(id, { columnId: col.id, index: position === 'top' ? 0 : undefined });
     return text(`Moved #${t.id} "${t.title}" to ${col.name}.`);
   })
@@ -297,17 +323,57 @@ server.registerTool(
 );
 
 server.registerTool(
+  'list_projects',
+  {
+    title: 'List projects',
+    description: 'Every project with task counts per column, overdue and due-this-week numbers. The first active project is the default for other tools.',
+    inputSchema: { include_archived: z.boolean().optional() },
+    annotations: { readOnlyHint: true },
+  },
+  tool(({ include_archived }) => {
+    const projects = store.listProjects({ includeArchived: !!include_archived });
+    return text(
+      projects
+        .map((p, i) => {
+          const s = p.stats;
+          const cols = s.columns.filter((c) => !c.hidden).map((c) => `${c.name} ${c.count}`).join(' · ');
+          const flags = [s.overdue && `${s.overdue} overdue`, s.dueWeek && `${s.dueWeek} due this week`].filter(Boolean).join(', ');
+          return `${p.icon} ${p.name} (id ${p.id})${i === 0 && !p.archived ? ' [default]' : ''}${p.archived ? ' [archived]' : ''} — ${s.total} task(s): ${cols}${flags ? ` — ${flags}` : ''}`;
+        })
+        .join('\n')
+    );
+  })
+);
+
+server.registerTool(
+  'create_project',
+  {
+    title: 'Create project',
+    description: 'Create a new project with its own board (columns: Open, In Progress, Follow-up, Done).',
+    inputSchema: {
+      name: z.string().min(1),
+      icon: z.string().optional().describe('A single emoji, e.g. 🚀'),
+      description: z.string().optional(),
+    },
+  },
+  tool(({ name, icon, description }) => {
+    const p = store.createProject({ name, icon, description });
+    return text(`Created project ${p.icon} ${p.name} (id ${p.id}).`);
+  })
+);
+
+server.registerTool(
   'list_columns',
   {
     title: 'List columns',
-    description: 'All columns with ids, including hidden ones and which one counts as "done".',
-    inputSchema: {},
+    description: 'Columns of a project with ids, including hidden ones and which one counts as "done".',
+    inputSchema: { project: projectRef.optional() },
     annotations: { readOnlyHint: true },
   },
-  tool(() =>
+  tool(({ project }) =>
     text(
       store
-        .listColumns()
+        .listColumns(store.resolveProject(project).id)
         .map((c) => `- ${c.name} (id ${c.id})${c.isDone ? ' [done]' : ''}${c.hidden ? ' [hidden]' : ''}`)
         .join('\n')
     )
