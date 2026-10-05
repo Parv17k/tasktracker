@@ -35,8 +35,8 @@ server/db.js        ← all data & business rules: projects, columns, tasks, set
 server/index.js     ← REST API, live updates (SSE), serves the UI
 server/reminders.js ← deadline reminder engine + Web Push delivery
 server/chat.js      ← AI chat: board snapshot, streaming proxy, voice (speech-to-text / text-to-speech)
-server/actions.js   ← changes the assistant proposes: preview for approval, then apply in one transaction
-mcp/index.js        ← MCP server for AI agents (uses server/db.js)
+server/actions.js   ← proposed changes (assistant + agents in "ask first" mode): preview, approve, apply in one transaction
+mcp/index.js        ← MCP server for AI agents: reads directly, writes become approval requests by default
 shared/due.js       ← "Due tomorrow" / "Overdue 2d" labels, shared by UI + MCP
 shared/tags.js      ← tag colours and add/remove helpers, shared by UI, chat + MCP
 web/public/
@@ -50,7 +50,7 @@ web/src/
   themes.js         ← theme list for the picker
   styles.css        ← theme colours (CSS variables) + global styles
   dates.js          ← date presets & quick-add parser (@fri !high)
-  components/       ← Home, Board, Timeline, Column, TaskCard, TaskSheet, Tags, Reminders, Chat, TopBar, …
+  components/       ← Home, Board, Timeline, AgentInbox, Chat, Column, TaskCard, TaskSheet, Tags, Reminders, TopBar, …
 test/               ← node:test suite
 ```
 

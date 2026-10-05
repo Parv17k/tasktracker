@@ -9,10 +9,10 @@
 
 ### The local-first task board for you and your AI agents.
 
-Claude and Cursor plan and update tasks over MCP while you watch live. The built-in assistant asks before it changes anything.<br />
-Nothing leaves your machine, and keeping up with your agents takes one calm glance, not another inbox.
+Claude and Cursor plan and update tasks over MCP. **Agents propose, you approve**: every change waits for one tap.<br />
+Working with agents stays low-effort: one calm board, changes in plain words, nothing leaving your machine.
 
-[![MCP](https://img.shields.io/badge/MCP-18_tools-8a63d2)](#-work-with-your-ai-agents-mcp)
+[![MCP](https://img.shields.io/badge/MCP-19_tools-8a63d2)](#-work-with-your-ai-agents-mcp)
 [![Local-first](https://img.shields.io/badge/local--first-one_SQLite_file-0f80cc?logo=sqlite&logoColor=white)](#-who-its-for)
 [![AI](https://img.shields.io/badge/assistant-chat_%C2%B7_voice_%C2%B7_approvals-10a37f)](#-the-built-in-assistant)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.13-3c873a?logo=node.js&logoColor=white)](https://nodejs.org)
@@ -21,9 +21,9 @@ Nothing leaves your machine, and keeping up with your agents takes one calm glan
 
 <br />
 
-<img src="docs/screenshots/chat.png" alt="Asking Task Tracker what to focus on today: the assistant ranks tasks due in the next few hours, due today, and overdue" width="100%" />
+<img src="docs/screenshots/demo.gif" alt="An AI agent connected over MCP asks to add a task, complete one and add a subtask; nothing changes until each request is approved in the app, then the board updates" width="100%" />
 
-<sub>A real, unedited answer from a self-hosted open model, grounded in the board behind it.</sub>
+<sub>A real MCP connection (a scripted demo agent) asking for three changes. Nothing moves until they're approved.</sub>
 
 </div>
 
@@ -34,13 +34,13 @@ Nothing leaves your machine, and keeping up with your agents takes one calm glan
 <td width="33%" valign="top">
 
 ### 🤖 Agents work on your board
-Claude Code, Cursor and any MCP client get **18 tools** to plan work, break it into subtasks, log progress and finish tasks. Their changes appear on your board **live**, through the same rules you use.
+Claude Code, Cursor and any MCP client get **19 tools** to plan work, break it into subtasks, log progress and finish tasks, through the same rules you use.
 
 </td>
 <td width="33%" valign="top">
 
 ### ✅ You stay in charge
-The built-in assistant **proposes, you approve**: every change it suggests waits on an approval card until you tap **Apply**. It can't delete anything, and changes apply all-or-nothing.
+**Agents propose, you approve.** Changes from agents and from the built-in assistant wait on an approval card, in plain words, until you tap **Apply**. Trust an agent? Let it apply right away.
 
 </td>
 <td width="33%" valign="top">
@@ -62,7 +62,7 @@ I wanted the opposite: a task board that gets **calmer** as AI gets more capable
 
 | You are… | What Task Tracker gives you |
 | --- | --- |
-| **A developer working with coding agents** | Your agent plans the work, breaks it into subtasks, logs progress in notes and completes tasks over MCP. You see all of it on one board, live. |
+| **A developer working with coding agents** | Your agent plans the work, breaks it into subtasks, logs progress and completes tasks over MCP. You approve its changes in one tap and see everything on one board. |
 | **Privacy-first** | Everything local: one SQLite file, no account. Run the assistant on Ollama or LM Studio and nothing leaves your machine. |
 | **Easily overwhelmed by tools** | Four columns, no Save buttons, deadlines in plain words, and an assistant you can ask "What should I focus on today?", by typing or by voice. |
 | **An AI power user** | Humans, the assistant and agents all go through one data layer, so the rules always match. Plan on a timeline and drag to reschedule. |
@@ -76,7 +76,8 @@ I wanted the opposite: a task board that gets **calmer** as AI gets more capable
 - **Four columns to start**, not a workflow designer.
 - **Everything autosaves.** There's no Save button anywhere.
 - **Deadlines read like a person wrote them:** *Due in 3h*, *Overdue by 2d*.
-- **AI proposes, you approve**, in one click, with every change spelled out in plain words.
+- **Agents ask first.** Their changes wait for your OK, spelled out in plain words, and you approve them in one tap.
+- **The assistant proposes, you approve**, and it can't delete anything.
 - **Agents show up where you already look:** on the board, live, with no extra dashboard to check.
 - **Each reminder fires once**, and a burst arrives as a single summary.
 - **Errors are plain sentences** with a next step, never a stack trace.
@@ -123,7 +124,7 @@ Then just ask:
 > *"Log what you just did on #12 and mark it complete."*
 
 <details>
-<summary><b>All 18 MCP tools</b></summary>
+<summary><b>All 19 MCP tools</b></summary>
 
 | Tool | What it does |
 | --- | --- |
@@ -145,10 +146,20 @@ Then just ask:
 | `track_time` | Start or stop the time-spent timer |
 | `list_columns` | A project's columns with ids, hidden flags and the done column |
 | `list_tags` | Every tag with how many tasks and projects use it |
+| `get_request` | Whether a change request was approved, and the ids of anything it created |
 
 </details>
 
-The agent writes straight to the same SQLite file, so the web server doesn't even need to be running. If it is, open tabs **update live** within about half a second.
+### ✋ Agents ask first
+
+By default, an agent can read everything but **can't change your board on its own**. Each write becomes a request in the 🤖 **Agent requests** inbox:
+
+- A gentle toast tells you *"Claude Code wants to make 3 changes"*; nothing interrupts you more than that.
+- Each change is spelled out in plain words, with a checkbox. Untick what you don't want, then **Apply**, or **Dismiss** the lot.
+- The agent is told what happened (`get_request`), including the ids of anything it created, so it can carry on.
+- Trust an agent? Switch the inbox to **Apply right away** and its changes land directly, live on the board.
+
+The MCP server works on the same SQLite file as the app, so agents can read your board even when the web server isn't running. When it is, open tabs **update live** within about half a second.
 
 ## ✨ The built-in assistant
 
@@ -194,6 +205,13 @@ Click ✨ in the top bar. Connect any OpenAI-compatible provider once (one-click
 </td>
 </tr>
 </table>
+
+<div align="center">
+<img src="docs/screenshots/chat.png" alt="Asking Task Tracker what to focus on today: the assistant ranks tasks due in the next few hours, due today, and overdue" width="100%" />
+<br /><sub>"What should I focus on today?" A real, unedited answer from a self-hosted open model, grounded in the board behind it.</sub>
+</div>
+
+<br />
 
 <div align="center">
 <img src="docs/screenshots/chat-board.png" alt="Asking the AI to summarize a project from inside its board, in the Rosé Pine theme" width="100%" />
@@ -336,7 +354,7 @@ flowchart LR
         direction TB
         API["⚡ <b>Fastify API</b><br/><small>server/index.js · REST + SSE</small>"]
         CHAT["✨ <b>Assistant</b><br/><small>chat.js · actions.js · voice</small>"]
-        MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 18 tools</small>"]
+        MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 19 tools</small>"]
         CORE["🧠 <b>Shared data layer</b><br/><small>server/db.js · rules &amp; validation</small>"]
         WATCH["👀 <b>Change watcher</b><br/><small>PRAGMA data_version</small>"]
     end
@@ -416,7 +434,7 @@ sequenceDiagram
 </details>
 
 <details>
-<summary><b>⚡ Live sync: an agent completes a task and your board updates</b></summary>
+<summary><b>⚡ Live sync: an agent's change appears on your board</b></summary>
 
 ```mermaid
 sequenceDiagram
@@ -428,8 +446,15 @@ sequenceDiagram
     participant UI as 🖥️ Browser
 
     AI->>MCP: complete_task(id: 12, note: "Shipped ✅")
-    MCP->>DB: append note + move to Done (one transaction)
-    MCP-->>AI: ✓ Completed task 12 → Done
+    alt Ask me first (default)
+        MCP->>DB: save a request for your approval
+        MCP-->>AI: waiting for approval (request 7)
+        Note over DB: You tap Apply in the inbox
+        DB->>DB: append note + move to Done (one transaction)
+    else Apply right away
+        MCP->>DB: append note + move to Done (one transaction)
+        MCP-->>AI: ✓ Completed task 12 → Done
+    end
     loop every 500 ms
         API->>DB: PRAGMA data_version
     end
@@ -518,6 +543,9 @@ The AI provider (and optional voice models) is configured in the app (✨ → se
 | `GET` | `/api/chat/models` | Models offered by the provider (also a connection test) |
 | `POST` | `/api/chat` | `{ messages, projectId }`, streams the reply as plain text |
 | `POST` | `/api/chat/actions/preview` · `/apply` | Check, then apply, changes the assistant proposed |
+| `GET` | `/api/proposals?status=pending\|recent` | Change requests from agents |
+| `POST` | `/api/proposals/:id/apply` · `/dismiss` | Approve (optionally `{ selected }`) or dismiss a request |
+| `GET` / `PATCH` | `/api/settings/agents` | `{ approval: "ask" \| "auto" }` |
 | `POST` | `/api/chat/transcribe` | Raw audio body → `{ text }` |
 | `POST` | `/api/chat/speech` | `{ text }` → audio |
 | `GET` | `/api/events` | Server-Sent Events stream (`change`, `reminder`) |
@@ -529,6 +557,7 @@ The AI provider (and optional voice models) is configured in the app (✨ → se
 Task Tracker is young and moving fast. Here's where it's heading, and **every item is open for contributors**. Comment on an issue (or open one) to claim it.
 
 ### ✅ Recently shipped
+- ✋ **Agents ask first**: MCP changes wait in an approval inbox (or apply right away, your choice)
 - 🎙️ **Voice**: talk to the assistant and hear it answer, hands-free
 - ✅ **Assistant actions** with an approval card for every change, and plain-language errors
 - 🗓️ **Timeline (Gantt)** per project and across projects, with drag to reschedule and optional start dates
