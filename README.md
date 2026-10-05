@@ -7,15 +7,16 @@
 
 <br />
 
-**A calm, beautiful, local-first Kanban board with AI built in.**
+**A calm, beautiful, local-first task board with an AI assistant you can talk to.**
 
-Ask it what matters today. Let your agents manage tasks over MCP. Keep every byte on your machine.
+Ask it what matters today. Let it reschedule with your OK. Plan on a timeline. Keep every byte on your machine.
 
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.13-3c873a?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React 19](https://img.shields.io/badge/react-19-149eca?logo=react&logoColor=white)](https://react.dev)
 [![SQLite](https://img.shields.io/badge/sqlite-built--in-0f80cc?logo=sqlite&logoColor=white)](https://nodejs.org/api/sqlite.html)
-[![AI chat](https://img.shields.io/badge/AI_chat-OpenAI--compatible-10a37f)](#-ai-built-in)
-[![MCP](https://img.shields.io/badge/MCP-18_tools-8a63d2)](https://modelcontextprotocol.io)
+[![AI chat](https://img.shields.io/badge/AI-chat_%C2%B7_voice_%C2%B7_actions-10a37f)](#-ai-built-in)
+[![MCP](https://img.shields.io/badge/MCP-18_tools-8a63d2)](#-plug-in-your-ai-agent-mcp)
+[![Timeline](https://img.shields.io/badge/Gantt-timeline-e8a33d)](#%EF%B8%8F-timeline-plan-across-time-drag-to-reschedule)
 [![Installable](https://img.shields.io/badge/PWA-installable-5a0fc8)](#-install-it-and-get-reminders)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg)](CONTRIBUTING.md)
@@ -32,15 +33,17 @@ Ask it what matters today. Let your agents manage tasks over MCP. Keep every byt
 
 ## Why Task Tracker?
 
-Most task apps are either cloud-hosted and heavy, or plain text and bare. Task Tracker sits in between, and it's built for working **with** AI:
+Most task apps are either cloud-hosted and heavy, or plain text and bare. Task Tracker sits in between, and it's built to work **with** AI:
 
-- ✨ **Ask your board anything, and let it act with your OK.** "What should I focus on today?" "Move the overdue ones to Friday." The assistant proposes changes and nothing happens until you approve. Bring any OpenAI-compatible model: OpenAI, OpenRouter, Groq, or a local one with Ollama or LM Studio.
-- 🤖 **Agents are first-class users.** A built-in [MCP](https://modelcontextprotocol.io) server gives Claude, Cursor and other agents 18 tools to read, create, move, tag and complete tasks, and you watch it happen live.
-- 🗂️ **Every project at a glance.** A home page shows each project's tasks by status, what's overdue, and what's coming up across all of them.
-- 🧘 **Low cognitive load.** Four columns, one click to open a card, no Save buttons. Everything autosaves.
-- ⚡ **Fast.** One SQLite query loads a whole board in about 1 ms, and the UI updates optimistically, so nothing waits on the network.
-- 🔔 **Never miss a deadline.** Install it as an app and get system notifications before things are due, even when the window is closed.
-- 🏠 **Local-first.** One SQLite file on your machine. No account, no cloud, no telemetry. Pair it with a local model and nothing ever leaves your computer.
+- ✨ **An assistant that knows your board.** Ask "What should I focus on today?" or "What's slipping?" and get answers grounded in your real tasks, from any OpenAI-compatible model, cloud or local.
+- ✅ **It can act, but only with your OK.** "Move the overdue ones to Friday." It proposes the changes on an approval card; nothing happens until you tap **Apply**.
+- 🎙️ **Talk to it.** Speak your question, hear the answer, and keep going hands-free.
+- 🗓️ **See your work across time.** A calm Gantt timeline for each project and for everything at once, and you drag a bar to reschedule.
+- 🤖 **Agents are first-class users.** A built-in [MCP](https://modelcontextprotocol.io) server gives Claude, Cursor and other agents 18 tools, and their changes appear on your board live.
+- 🏷️ **Organised your way.** Projects with priorities, colour tags on tasks and projects, deadlines that read like a human wrote them.
+- 🧘 **Low cognitive load.** One click to open a card, no Save buttons, calm defaults. Everything autosaves.
+- 🔔 **Never miss a deadline.** Install it as an app and get notifications before things are due, even when the window is closed.
+- 🏠 **Local-first.** One SQLite file on your machine. No account, no cloud, no telemetry. Pair it with a local model and nothing leaves your computer.
 - 🎨 **Pleasant to look at.** Twenty-four focus-friendly themes, from warm Paper to neon Terminal.
 
 ## Quick start
@@ -56,35 +59,44 @@ That's it. No database to install and no config files. SQLite is built into Node
 
 ## ✨ AI, built in
 
-Task Tracker works with AI in two directions: **you ask it about your work**, and **agents do work in it**.
+Click ✨ in the top bar. Connect any OpenAI-compatible provider once (one-click presets for **OpenAI, OpenRouter, Groq, Ollama and LM Studio**), and your board gains an assistant.
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### 💬 Ask about your tasks
-
-Click ✨ in the top bar and chat with your board.
-
-- **Grounded answers**: every question carries a compact snapshot of your projects, columns and tasks, with due dates, priorities, subtasks and tracked time. The project you have open comes first.
-- **Any OpenAI-compatible provider**: one-click presets for OpenAI, OpenRouter, Groq, Ollama and LM Studio, or any base URL. *Load models* lists what's available and tests the connection.
-- **Acts with your approval**: ask it to move, reschedule, reprioritise, tag, create or complete tasks, and it shows an approval card. Untick anything you don't want, then **Apply**. Nothing changes until you do.
+### 💬 Ask
+- **Grounded answers**: every question carries a compact snapshot of your projects, columns and tasks, with deadlines, start dates, priorities, tags, subtasks and tracked time. The project you have open comes first.
 - **Streams as it thinks**, with a Stop button. The conversation follows you between pages.
-- **Clear when something's wrong**: if your provider is down, the key is wrong or the URL is off, you get a plain explanation and a next step, not an error dump.
-- **Private by design**: your API key is stored in your local database and sent only to your provider. The browser only ever sees `…last4`.
+- **Clear when something's wrong**: if the provider is down, the key is wrong or the URL is off, you get a plain sentence and a next step, never an error dump.
 
 </td>
 <td width="50%" valign="top">
 
+### ✅ Act, with your approval
+- Ask it to **create, move, reschedule, reprioritise, tag or complete** tasks, add subtasks or notes, or set up projects.
+- It answers with an **approval card** listing each change in plain words. Untick anything you don't want, then **Apply**.
+- Every change is checked against the same rules as the board, applied **all-or-nothing**, and it **can't delete** anything.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🎙️ Talk
+- Tap the **mic** and speak. It stops listening when you pause.
+- Turn on **read answers aloud** 🔊 to hear the reply.
+- Asked by voice? The mic reopens after each answer, for a **hands-free** conversation. Proposed changes pause it so you can review them.
+- Uses your provider's speech models (e.g. Whisper) if you set them, or your browser's built-in speech.
+
+</td>
+<td valign="top">
+
 ### 🔌 Let agents do the work
-
-A first-class **MCP server** turns Task Tracker into shared memory for your coding agent:
-
-- Agents **plan** in it: break work into tasks and subtasks.
-- They **report** in it: append timestamped progress notes.
-- They **finish** in it: complete tasks with a summary.
-- **Live sync**: their changes appear on your board within about half a second, no refresh needed.
-- **Same rules for everyone**: humans and agents go through one shared data layer, so validation and behaviour always match.
+- A first-class **MCP server** turns Task Tracker into shared memory for your coding agent.
+- Agents **plan** (tasks and subtasks), **report** (timestamped notes) and **finish** (complete with a summary).
+- Their changes appear on your board within about half a second.
+- Humans, the chat and agents all go through **one data layer**, so the rules always match.
 
 </td>
 </tr>
@@ -97,62 +109,72 @@ A first-class **MCP server** turns Task Tracker into shared memory for your codi
 
 <br />
 
-> 🔒 **What leaves your machine?** Only when you ask a question: a summary of your tasks goes to the provider you chose. Point it at Ollama or LM Studio and even that stays local. Changes always need your approval, it can't delete anything (archive is the most it can do), and every change is checked against the same rules as the board.
+> 🔒 **What leaves your machine?** Only when you ask: a summary of your tasks (and, by voice, your recording) goes to the provider you chose. Your API key is stored locally and never reaches the browser, which only ever sees `…last4`. Point it at Ollama or LM Studio and even that stays local.
 
 ## 🎯 Features
 
-### 🗂️ Projects and a home page
+### 🗂️ Every project at a glance
 
-<img src="docs/screenshots/home.png" alt="Task Tracker home page with every project at a glance" width="100%" />
+<img src="docs/screenshots/home.png" alt="Task Tracker home page with every project, its priority, tags and status at a glance" width="100%" />
 
-Each project gets its own board. The home page shows them all in a single glance:
-
-- **Totals and status breakdown**: how many tasks, and how many are in Open, In Progress, Follow-up, Done or your own columns
-- **Progress ring**, overdue and due-this-week counts, and when the project was last touched
+- **Totals and status breakdown** for each project, with a progress ring, overdue and due-this-week counts
+- **Priority and tags on projects**: mark what matters most, and filter the home page by tag (`work`, `personal`, `Q4`…)
 - **Coming up**: everything due in the next 7 days across *all* projects; click a card to open that task
-- **Drag projects to reorder them**, and create, edit, archive or delete them. New projects start with the four default columns, or copy another project's
-- **Priority and tags on projects**: mark what matters most (Low to Urgent), tag projects (`work`, `personal`, `Q4`…) and filter the home page by tag
-- Jump between projects from the switcher in each board's title
+- **Drag projects to reorder them**; create, edit, archive or delete them. New projects start with four columns, or copy another project's
 
-<img src="docs/screenshots/board-paper.png" alt="A project board in the Paper theme" width="100%" />
+### 🗓️ Timeline: plan across time, drag to reschedule
+
+<img src="docs/screenshots/timeline.png" alt="A project's timeline: bars from start date to deadline, diamonds for deadlines, today marked, overdue items in red" width="100%" />
+
+Switch any board to **Timeline**. It's a Gantt chart without the clutter:
+
+- **A bar from start to deadline**, or a ◆ when a task only has a deadline, grouped by column and coloured to match it
+- **Drag to reschedule**: move a bar, drag its ends to change dates, or pull a ◆ out into a bar. Arrow keys work too, and times of day are kept
+- **Today is always in view**; overdue items are red with "Overdue 2d"; finished ones fade
+- **Weeks** or **Months** zoom, and the board's search, tag and deadline filters apply
+
+<img src="docs/screenshots/home-timeline.png" alt="The home-page timeline: one row per project with a diamond for every deadline, one project expanded to its tasks" width="100%" />
+
+On the home page, switch **Projects** to **Timeline** to see every project at once: one row each, with a ◆ for every deadline, so busy weeks stand out. Expand a project to see and reschedule its tasks right there.
+
+### 📋 A board that adapts to you
+
+<img src="docs/screenshots/board-paper.png" alt="A project board in the Paper theme with tags, priorities, deadlines and subtask progress" width="100%" />
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### 📋 A board that adapts to you
+#### Columns your way
 - Default columns: **Open → In Progress → Follow-up → Done**
 - Add, rename and recolour columns, **drag them by the header to reorder**, and choose which one means "done"
-- **Removing a column that still has tasks asks first**: move the tasks somewhere else, or hide the column and bring it back later
-- Smooth drag & drop within and across columns, with clear grab handles
+- **Removing a column that still has tasks asks first**: move them elsewhere, or hide the column for later
+- Smooth drag & drop with clear grab handles
 
 </td>
 <td width="50%" valign="top">
 
-### ✍️ Rich, frictionless cards
+#### Rich, frictionless cards
 - Title, description, **subtasks** with a progress bar, and a lined **note** pad
-- Priority levels from Low to Urgent
-- **Tags** in colour: type `#design` when adding a task or pick from suggestions, click any tag to filter the board, and rename, recolour or delete tags in one place
-- **Archive** with one click (with Undo), then restore or delete from the archive
-- Tick the circle on a card to complete it
-- **Search** finds text in any field: title, description, note, subtasks and tags
+- **Priority** from Low to Urgent, and colour **tags**: click one to filter the board
+- **Archive** with one click (with Undo); restore or delete from the archive
+- **Search** finds text in any field, including tags
 
 </td>
 </tr>
 <tr>
 <td valign="top">
 
-### ⏰ Deadlines that speak human
-- Pick a date with an optional time, or use a preset: *Today*, *Tomorrow*, *In 2 days*, *Next week*
-- Cards read **Due today**, **Due in 3h**, **Due next week** or **Overdue by 2d**, colour-coded and updated live
-- **Due this week** and **Overdue** filters, plus a live count in the header
+#### ⏰ Deadlines that speak human
+- Pick a date with an optional time, or a preset: *Today*, *Tomorrow*, *In 2 days*, *Next week*
+- Cards read **Due today**, **Due in 3h**, **Due next week** or **Overdue by 2d**, updated live
 - An optional **start date** turns a task into a span on the timeline
-- A start/pause **time-spent timer** on every task
+- **Due this week** and **Overdue** filters, and a start/pause **time tracker** on every task
 
 </td>
 <td valign="top">
 
-### ⌨️ Keyboard-friendly quick add
+#### ⌨️ Keyboard-friendly quick add
 Press <kbd>N</kbd> and type naturally:
 
 ```
@@ -160,8 +182,7 @@ Send invoice to Acme @fri !high #finance
 ```
 
 - `@today` `@tomorrow` `@mon`…`@sun` `@nextweek` `@3d` `@2w` `@2026-12-01` set the deadline
-- `!low` `!med` `!high` `!urgent` set the priority
-- `#finance` `#q4-launch` add tags
+- `!low` `!med` `!high` `!urgent` set the priority, `#finance` adds a tag
 - <kbd>/</kbd> to search, <kbd>Esc</kbd> to close
 
 </td>
@@ -169,26 +190,18 @@ Send invoice to Acme @fri !high #finance
 </table>
 
 <div align="center">
-<img src="docs/screenshots/task-detail.png" alt="Task detail panel with deadline, timer and subtasks" width="100%" />
-<br /><sub>Every field autosaves. The deadline, timer, subtasks and note all live in one calm panel.</sub>
+<img src="docs/screenshots/task-detail.png" alt="Task detail panel with status, priority, deadline, start date, time spent, tags and subtasks" width="100%" />
+<br /><sub>Every field autosaves. Status, priority, deadline, start date, timer, tags, subtasks and note live in one calm panel.</sub>
 </div>
 
-### 🗓️ Timeline: see your work across time, and drag to reschedule
-
-Switch any board to **Timeline**, or the home page's project list to **Timeline** for every project at once. It's a calm Gantt chart:
-
-- **One row per task**, grouped by column. A bar runs from the start date to the deadline; tasks with only a deadline show as a ◆.
-- **Drag to reschedule**: drag a bar to move it, drag its ends to change the start or deadline, or pull a ◆ out into a bar. Times of day are kept. Arrow keys work too.
-- **Today is always in view**, overdue items are outlined in red with "Overdue 2d", and finished ones fade.
-- **Two zoom levels**, *Weeks* and *Months*; the board's search, tag and deadline filters apply.
-- **Home page**: one row per project with a ◆ at each deadline, so busy weeks stand out. Expand a project to see and reschedule its tasks.
-- Tasks without a deadline stay out of the way in a collapsible list.
+### 🏷️ Tags that stay tidy
+- Shared by tasks and projects, with suggestions as you type and a stable colour per tag
+- Names ignore case, so `Design` and `design` are one tag; unused tags disappear on their own
+- **Manage tags** to rename, recolour or delete one everywhere at once
 
 ### 📲 Install it, and get reminders
 
-Task Tracker is a **Progressive Web App**: click **Install** in the top bar (Chrome, Edge, or Safari's *Add to Dock*) and it gets its own window and Dock/taskbar icon.
-
-Turn on reminders from the 🔔 bell, and Task Tracker sends system notifications for deadlines:
+Task Tracker is a **Progressive Web App**: click **Install** in the top bar (Chrome, Edge, or Safari's *Add to Dock*) and it gets its own window and Dock/taskbar icon. Turn on reminders from the 🔔 bell:
 
 | Reminder | When | Adjustable |
 | --- | --- | --- |
@@ -197,15 +210,15 @@ Turn on reminders from the 🔔 bell, and Task Tracker sends system notification
 | Before a due time | for tasks with a time, e.g. 1 hour before | on/off, 15 min to 1 day |
 | When it becomes overdue | at the due time, or the next morning for all-day tasks | on/off |
 
-- **Works with the app closed**: the local server sends reminders through the browser's push service, signed with keys generated on your machine. No account is needed.
-- **Calm by design**: each reminder fires once, done tasks never remind you, and a burst of reminders (say, after your laptop wakes up) arrives as a single summary.
+- **Works with the app closed**: the local server sends reminders through the browser's push service, signed with keys generated on your machine. No account needed.
+- **Calm by design**: each reminder fires once, done tasks never remind you, and a burst (say, after your laptop wakes) arrives as one summary.
 - **Click a notification** to jump straight to that task.
 
-> Reminders while the app is closed need the Task Tracker server running. Delivery goes through your browser's push service, so it needs an internet connection. Open windows also receive reminders over the local live-update stream.
+> Reminders while the app is closed need the Task Tracker server running and an internet connection for the browser's push service. Open windows also receive them over the local live-update stream.
 
 ## 🎨 Themes
 
-Twenty-four themes designed for focus. Switch instantly from the brush icon in the top bar; your choice applies everywhere and is remembered.
+Twenty-four themes designed for focus. Switch instantly from the brush icon; your choice applies everywhere and is remembered.
 
 | | | |
 |:-:|:-:|:-:|
@@ -242,7 +255,7 @@ claude mcp add tasktracker -- node /absolute/path/to/tasktracker/mcp/index.js
 Then just ask:
 
 > *"What's overdue across all my projects?"*
-> *"Break task #3 into subtasks and move it to In Progress."*
+> *"Break task #3 into subtasks, tag it #backend and move it to In Progress."*
 > *"Log what you just did on #12 and mark it complete."*
 
 <details>
@@ -250,7 +263,7 @@ Then just ask:
 
 | Tool | What it does |
 | --- | --- |
-| `list_projects` | Every project with task counts per column and deadlines. A good first call |
+| `list_projects` | Every project with priority, tags, task counts per column and deadlines. A good first call |
 | `create_project` | New project with its own board, priority and tags |
 | `update_project` | Rename, re-icon, set priority, or add/remove tags |
 | `get_board` | Columns and tasks of one project (`project: "website"`, fuzzy) |
@@ -279,21 +292,21 @@ The agent writes straight to the same SQLite file, so the web server doesn't eve
 flowchart LR
     subgraph clients["&nbsp;👥 Clients&nbsp;"]
         direction TB
-        UI["🖥️ <b>React UI</b><br/><small>React 19 · Tailwind · dnd-kit</small>"]
+        UI["🖥️ <b>React UI</b><br/><small>Board · Timeline · Chat · Voice</small>"]
         AGENT["🤖 <b>AI Agent</b><br/><small>Claude · Cursor · any MCP client</small>"]
     end
 
     subgraph node["&nbsp;⚙️ Node.js&nbsp;"]
         direction TB
         API["⚡ <b>Fastify API</b><br/><small>server/index.js · REST + SSE</small>"]
-        CHAT["✨ <b>Chat</b><br/><small>server/chat.js · board snapshot</small>"]
+        CHAT["✨ <b>Assistant</b><br/><small>chat.js · actions.js · voice</small>"]
         MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 18 tools</small>"]
         CORE["🧠 <b>Shared data layer</b><br/><small>server/db.js · rules &amp; validation</small>"]
         WATCH["👀 <b>Change watcher</b><br/><small>PRAGMA data_version</small>"]
     end
 
     DB[("🗄️ <b>SQLite · WAL</b><br/><small>~/.tasktracker/tasktracker.db</small>")]
-    LLM["🧠 <b>Your LLM</b><br/><small>OpenAI · OpenRouter · Groq<br/>Ollama · LM Studio</small>"]
+    LLM["🧠 <b>Your LLM</b><br/><small>chat · speech-to-text · voice<br/>OpenAI · Groq · Ollama · LM Studio</small>"]
 
     UI -->|"HTTP · JSON<br/>optimistic updates"| API
     API -.->|"SSE · live updates"| UI
@@ -301,7 +314,7 @@ flowchart LR
     API --> CORE
     API --> CHAT
     CHAT --> CORE
-    CHAT <-->|"/chat/completions<br/>streamed"| LLM
+    CHAT <-->|"OpenAI-compatible API<br/>streamed"| LLM
     MCP --> CORE
     CORE <-->|"~1 ms queries"| DB
     DB -.->|"writes from<br/>other processes"| WATCH
@@ -338,14 +351,14 @@ sequenceDiagram
     participant DB as 🗄️ SQLite
     participant LLM as 🧠 Your LLM
 
-    You->>UI: "What should I focus on today?"
+    You->>UI: "What should I focus on today?" (typed or spoken)
     UI->>API: POST /api/chat (conversation + open project)
     API->>DB: active projects, columns, tasks
-    API->>API: build a compact snapshot<br/>(local dates, due labels, priorities)
+    API->>API: build a compact snapshot<br/>(local dates, due labels, priorities, tags)
     API->>LLM: system prompt + snapshot + conversation<br/>(your key is added here, server-side)
     LLM-->>API: streamed tokens
     API-->>UI: streamed text
-    Note over UI: Answer appears word by word ✨<br/>Stop anytime
+    Note over UI: Answer appears word by word ✨<br/>and can be read aloud 🔊
     opt the answer proposes changes
         UI->>API: preview the proposed changes
         API-->>UI: plain-language list, checked against the board's rules
@@ -404,18 +417,18 @@ sequenceDiagram
     SW-->>You: opens that task
 ```
 
-- **One data layer** (`server/db.js`) holds every business rule, shared by the API, the chat and the MCP server, so humans and agents always behave the same way.
-- **Grounded chat without tool calling:** the server sends the model a compact, budgeted snapshot of your board, so even small local models give useful answers. Your API key never reaches the browser.
+- **One data layer** (`server/db.js`) holds every business rule, shared by the API, the assistant and the MCP server, so humans and agents always behave the same way.
+- **Grounded chat without tool calling:** the server sends the model a compact, budgeted snapshot of your board, and the model proposes changes as a small structured block that the app validates and shows for approval. It works even with small local models. Your API key never reaches the browser.
 - **Live sync without polling the API:** the server watches SQLite's `PRAGMA data_version` and pushes changes from other processes to browsers over Server-Sent Events.
 - **WAL mode** lets the web app and an agent write at the same time.
-- **Optimistic UI** with fractional ordering means drag & drop never waits on the server.
+- **Optimistic UI** with fractional ordering means drag & drop, on the board or the timeline, never waits on the server.
 
 | Layer | Tech |
 | --- | --- |
 | Frontend | React 19 · Vite · Tailwind CSS v4 · Radix UI · dnd-kit · Zustand · Sonner |
 | Backend | Node.js · Fastify · `node:sqlite` · `web-push` |
-| AI | Any OpenAI-compatible `/chat/completions` API (streaming) · `@modelcontextprotocol/sdk` · Zod |
-| App | Web App Manifest · Service Worker · Push & Notifications APIs |
+| AI | Any OpenAI-compatible API: `/chat/completions` (streaming), `/audio/transcriptions`, `/audio/speech` · `@modelcontextprotocol/sdk` · Zod |
+| App | Web App Manifest · Service Worker · Push & Notifications · MediaRecorder & Web Speech |
 
 <details>
 <summary><b>Configuration</b></summary>
@@ -426,7 +439,7 @@ sequenceDiagram
 | `HOST` | `127.0.0.1` | Bound to localhost only by default |
 | `TASKTRACKER_DB` | `~/.tasktracker/tasktracker.db` | Shared by the web app and the MCP server |
 
-The AI chat provider is configured in the app (✨ → settings) and stored in the same database.
+The AI provider (and optional voice models) is configured in the app (✨ → settings) and stored in the same database.
 
 </details>
 
@@ -435,30 +448,33 @@ The AI chat provider is configured in the app (✨ → settings) and stored in t
 
 | Method | Endpoint | |
 | --- | --- | --- |
-| `GET` | `/api/home` | Every project with stats, plus tasks due soon across projects |
+| `GET` | `/api/home` | Every project with stats, tasks due soon, and all tags |
 | `GET` / `POST` | `/api/projects` | List or create projects |
-| `GET` | `/api/projects/:id/board` | A project's columns and active tasks, with subtasks |
-| `PATCH` / `DELETE` | `/api/projects/:id` | Edit, archive or delete a project |
+| `GET` | `/api/projects/:id/board` | A project's columns and active tasks, with subtasks and tags |
+| `PATCH` / `DELETE` | `/api/projects/:id` | Edit (incl. priority and tags), archive or delete a project |
 | `POST` | `/api/projects/:id/move` | `{ index }` to reorder |
+| `GET` | `/api/timeline` | Active projects with their dated tasks, for the home-page timeline |
 | `GET` | `/api/tasks?project=&q=&tag=&column=&overdue=&dueWithinDays=&archived=` | Search and filter |
 | `POST` | `/api/tasks` | Create |
-| `PATCH` | `/api/tasks/:id` | Update fields, archive or restore |
+| `PATCH` | `/api/tasks/:id` | Update fields (incl. `startAt`, `dueAt`, `tags`), archive or restore |
 | `POST` | `/api/tasks/:id/move` | `{ columnId, index }` |
 | `POST` | `/api/tasks/:id/complete` | Move to the done column |
 | `POST` | `/api/tasks/:id/timer/start` · `/stop` | Time tracking |
 | `POST` | `/api/tasks/:id/subtasks` | Add a subtask |
 | `PATCH` / `DELETE` | `/api/subtasks/:id` | Update or delete a subtask |
 | `POST` / `PATCH` / `DELETE` | `/api/columns[/:id]` | Manage columns (`POST { projectId, … }`, `DELETE ?moveTo=<id>`) |
+| `GET` | `/api/tags` | Every tag with its colour and usage counts |
+| `PATCH` / `DELETE` | `/api/tags/:id` | Rename or recolour a tag everywhere, or delete it |
 | `GET` / `PATCH` | `/api/settings/reminders` | Reminder preferences |
 | `GET` | `/api/push/key` | Public VAPID key for subscribing |
 | `POST` | `/api/push/subscribe` · `/unsubscribe` | Register or remove a browser for push |
 | `POST` | `/api/push/test` | Send a test notification |
-| `GET` / `PATCH` | `/api/settings/llm` | Chat provider (base URL, model, key). The key is write-only |
+| `GET` / `PATCH` | `/api/settings/llm` | AI provider (base URL, model, key, voice models). The key is write-only |
 | `GET` | `/api/chat/models` | Models offered by the provider (also a connection test) |
 | `POST` | `/api/chat` | `{ messages, projectId }`, streams the reply as plain text |
-| `GET` | `/api/tags` | Every tag with its colour and usage counts |
-| `GET` | `/api/timeline` | Active projects with their dated tasks, for the home-page timeline |
-| `PATCH` / `DELETE` | `/api/tags/:id` | Rename or recolour a tag everywhere, or delete it |
+| `POST` | `/api/chat/actions/preview` · `/apply` | Check, then apply, changes the assistant proposed |
+| `POST` | `/api/chat/transcribe` | Raw audio body → `{ text }` |
+| `POST` | `/api/chat/speech` | `{ text }` → audio |
 | `GET` | `/api/events` | Server-Sent Events stream (`change`, `reminder`) |
 
 </details>
@@ -468,10 +484,11 @@ The AI chat provider is configured in the app (✨ → settings) and stored in t
 Task Tracker is young and moving fast. Here's where it's heading, and **every item is open for contributors**. Comment on an issue (or open one) to claim it.
 
 ### ✅ Recently shipped
-- ✨ AI chat with any OpenAI-compatible provider, grounded in your board
-- ✅ The assistant can change your board, with an approval card for every change
-- 🏷️ Tags on tasks and projects, and project priority
-- 🗓️ Timeline (Gantt) view per project and across projects, with drag to reschedule
+- 🎙️ **Voice**: talk to the assistant and hear it answer, hands-free
+- ✅ **Assistant actions** with an approval card for every change, and plain-language errors
+- 🗓️ **Timeline (Gantt)** per project and across projects, with drag to reschedule and optional start dates
+- 🏷️ **Tags** on tasks and projects, and **project priority**
+- ✨ **AI chat** with any OpenAI-compatible provider, grounded in your board
 - 🗂️ Multiple projects with a home page, drag-to-reorder projects and columns
 - 📲 Installable app with deadline reminders that work while it's closed
 - 🎨 Twenty-four themes
@@ -480,15 +497,14 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 
 | Idea | What it means | Status |
 | --- | --- | --- |
-| **Planning agent** | The chat becomes an agent that manages your timeline: proposes deadlines, rebalances priorities when things slip, and breaks goals into tasks. Every change shows as a diff you approve with one click | 🧪 Designing |
-| **Undo for applied changes** | One click to roll back everything the assistant just applied | 🙋 Help wanted |
-| **Native tool calling** | Use the provider's function calling when it's available, with the current approval card as the fallback | 🙋 Help wanted |
-| **Daily briefing** | A morning note: what's due, what's at risk, and a suggested plan for the day, delivered as a notification | 📋 Planned |
+| **Planning agent** | Watches your timeline and proactively proposes fixes: spread out a crowded week, move what's slipping, break big goals into tasks. Every change still goes through the approval card | 🧪 Designing |
+| **Daily briefing** | A morning note, spoken or written: what's due, what's at risk, and a suggested plan for the day | 📋 Planned |
 | **Weekly review** | What you finished, what slipped, and where your time went, from the timer data | 📋 Planned |
-| **Natural-language capture** | Type "remind me to renew insurance next Friday, high priority" and get a fully filled task | 🙋 Help wanted |
-| **Risk radar** | Flags tasks likely to slip, based on deadlines, progress on subtasks, and how long similar tasks took | 🧪 Exploring |
-| **Semantic search** | Find tasks by meaning, using local embeddings, so it still works offline | 🧪 Exploring |
-| **Voice capture** | Speak a task, transcribe it with a local Whisper model, and file it | 🙋 Help wanted |
+| **Undo for applied changes** | One click to roll back everything the assistant just applied | 🙋 Help wanted |
+| **Native tool calling** | Use the provider's function calling when available, with the approval card as the fallback | 🙋 Help wanted |
+| **Natural-language capture** | "Remind me to renew insurance next Friday, high priority, #bills" → a fully filled task | 🙋 Help wanted |
+| **Risk radar** | Flags tasks likely to slip, from deadlines, subtask progress and how long similar tasks took | 🧪 Exploring |
+| **Semantic search** | Find tasks by meaning, with local embeddings, so it works offline | 🧪 Exploring |
 | **Remote MCP** | Streamable-HTTP transport, so agents on other machines can connect | 🙋 Help wanted |
 
 ### 📋 Planning and productivity
@@ -496,10 +512,10 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 | Idea | Status |
 | --- | --- |
 | 🎯 **Goals**: link tasks to longer-term goals and track progress toward them | 📋 Planned |
+| 🔗 **Task dependencies**: "blocked by #12", drawn as links on the timeline | 🧪 Exploring |
 | 🔁 **Recurring tasks**: daily, weekly, monthly, or custom | 🙋 Help wanted |
-| 💾 **Saved filters**: keep a tag + deadline + search combination one click away | 🙋 Help wanted |
+| 💾 **Saved filters**: a tag + deadline + search combination one click away | 🙋 Help wanted |
 | 🗓️ **Calendar view**: a month grid of deadlines | 🙋 Help wanted |
-| 🔗 **Task dependencies**: "blocked by #12", shown as links on the timeline | 🧪 Exploring |
 | 🍅 **Focus mode**: one task, a Pomodoro timer, everything else hidden | 🙋 Help wanted |
 | 📄 **Task templates** for repeatable checklists | 🙋 Help wanted |
 | 🔀 **Move tasks between projects** | 🙋 Help wanted |
@@ -510,7 +526,7 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 | --- | --- |
 | 📥 **Import** from Trello, Todoist and GitHub Issues | 🙋 Help wanted |
 | 📤 **Export** a board as Markdown or JSON, and one-click backups | 🙋 Help wanted |
-| 📱 **Phone access** on your local network with HTTPS, so phones can install the app too | 🧪 Exploring |
+| 📱 **Phone access** on your local network with HTTPS, so phones can install the app | 🧪 Exploring |
 | 🔄 **Optional sync** between your own devices, still with no cloud account | 🧪 Exploring |
 | ⌨️ **Command palette** (<kbd>⌘K</kbd>) and a keyboard shortcuts sheet (<kbd>?</kbd>) | 🙋 Help wanted |
 | 🌍 **Translations** and an accessibility audit | 🙋 Help wanted |
@@ -521,7 +537,7 @@ Task Tracker is young and moving fast. Here's where it's heading, and **every it
 
 ```bash
 npm run dev     # API on :1717 + Vite with hot reload on :5173
-npm test        # data layer, reminder and chat tests (node:test)
+npm test        # data layer, reminders, tags, timeline, chat, actions and voice tests (node:test)
 npm run build   # production build of the UI
 ```
 
