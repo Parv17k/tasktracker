@@ -5,10 +5,47 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import * as store from '../server/db.js';
+import * as actions from '../server/actions.js';
 import { dueInfo, formatDuration } from '../shared/due.js';
 import { changeTags } from '../shared/tags.js';
 
-const server = new McpServer({ name: 'tasktracker', version: '1.0.0' });
+const server = new McpServer(
+  { name: 'tasktracker', version: '1.0.0' },
+  {
+    instructions:
+      "Task Tracker is the user's local task board. Read freely. By default the user approves changes: write tools then return a request id instead of changing the board, " +
+      'and the change appears once the user taps Apply in the app. Batch related changes into as few calls as you can, tell the user what you asked for, ' +
+      'and use get_request to see whether it was applied (and the ids of anything created).',
+  }
+);
+
+// ---------- approval ----------
+// In "ask me first" mode (the default) every write becomes a request the user approves in the app.
+
+/** A friendly name for the connected agent, e.g. "claude-code" → "Claude Code". */
+function agentName() {
+  const raw = server.server.getClientVersion()?.name || '';
+  if (!raw) return 'An agent';
+  return raw
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\bMcp\b/g, 'MCP')
+    .slice(0, 60);
+}
+
+const asking = () => store.getAgentSettings().approval === 'ask';
+
+/** Queue `list` (action objects) for approval and describe what's waiting. */
+function request(list) {
+  const p = actions.propose({ agent: agentName(), actions: list });
+  const lines = p.items.map((i) => `- ${i.ok ? '' : '(can’t do) '}${i.verb} ${i.summary}`);
+  return text(
+    `Waiting for the user's approval in Task Tracker (request ${p.id}):\n${lines.join('\n')}\n\nNothing has changed yet. Call get_request with id ${p.id} later to see whether it was applied.`
+  );
+}
+
+/** Run `direct` now, or ask first with the equivalent `list` of actions. */
+const write = (list, direct) => (asking() ? request(list) : direct());
 
 // ---------- formatting ----------
 
@@ -83,9 +120,7 @@ const tool = (fn) => async (args) => {
 
 const taskId = z.coerce.number().int().positive().describe('Task id (the number after #)');
 const columnRef = z.union([z.string(), z.number()]).describe('Column name (e.g. "In Progress") or id');
-const projectRef = z
-  .union([z.string(), z.number()])
-  .describe('Project name (fuzzy, e.g. "website") or id. Defaults to the first project on the home page.');
+const projectRef = z.union([z.string(), z.number()]).describe('Project name (fuzzy, e.g. "website") or id. Defaults to the first project on the home page.');
 const priority = z.enum(['none', 'low', 'medium', 'high', 'urgent']);
 const due = z.string().describe('Deadline as YYYY-MM-DD (whole day) or an ISO datetime, e.g. 2026-10-05T17:00');
 const start = z.string().describe('Start date as YYYY-MM-DD (shows the task as a span on the timeline); empty string clears it');
@@ -120,8 +155,7 @@ server.registerTool(
   'list_tasks',
   {
     title: 'Find tasks',
-    description:
-      'Search/filter tasks across all projects, or one project. Use due_within_days or overdue to find deadlines (completed tasks are excluded from deadline filters).',
+    description: 'Search/filter tasks across all projects, or one project. Use due_within_days or overdue to find deadlines (completed tasks are excluded from deadline filters).',
     inputSchema: {
       project: projectRef.optional().describe('Limit to one project (name or id). Omit to search every project.'),
       column: columnRef.optional().describe('Column name or id (needs project when using a name)'),
@@ -187,22 +221,24 @@ server.registerTool(
       start: start.optional(),
     },
   },
-  tool(({ title, project, description, note, column, priority, due, start, subtasks, tags }) => {
-    const projectId = store.resolveProject(project).id;
-    const t = store.createTask({
-      projectId,
-      title,
-      description,
-      note,
-      priority,
-      dueAt: due,
-      startAt: start,
-      subtasks,
-      tags,
-      columnId: column != null ? store.resolveColumn(column, projectId).id : undefined,
-    });
-    return text(`Created in ${projectOf(t.columnId)?.name} / ${columnName(t.columnId)}:\n${taskDetail(t)}`);
-  })
+  tool(({ title, project, description, note, column, priority, due, start, subtasks, tags }) =>
+    write([{ type: 'create_task', title, project, description, note, column, priority, due, start, subtasks, tags }], () => {
+      const projectId = store.resolveProject(project).id;
+      const t = store.createTask({
+        projectId,
+        title,
+        description,
+        note,
+        priority,
+        dueAt: due,
+        startAt: start,
+        subtasks,
+        tags,
+        columnId: column != null ? store.resolveColumn(column, projectId).id : undefined,
+      });
+      return text(`Created in ${projectOf(t.columnId)?.name} / ${columnName(t.columnId)}:\n${taskDetail(t)}`);
+    })
+  )
 );
 
 server.registerTool(
@@ -224,11 +260,13 @@ server.registerTool(
       remove_tags: z.array(z.string()).optional(),
     },
   },
-  tool(({ id, due, start, tags, add_tags, remove_tags, ...rest }) => {
-    const patch = { ...rest, ...(due !== undefined ? { dueAt: due } : {}), ...(start !== undefined ? { startAt: start } : {}) };
-    if (tags !== undefined || add_tags || remove_tags) patch.tags = changeTags(tags ?? store.getTask(id).tags, { add: add_tags, remove: remove_tags });
-    return text(`Updated:\n${taskDetail(store.updateTask(id, patch))}`);
-  })
+  tool(({ id, due, start, tags, add_tags, remove_tags, ...rest }) =>
+    write([{ type: 'update_task', task: id, ...rest, due, start, tags, add_tags, remove_tags }], () => {
+      const patch = { ...rest, ...(due !== undefined ? { dueAt: due } : {}), ...(start !== undefined ? { startAt: start } : {}) };
+      if (tags !== undefined || add_tags || remove_tags) patch.tags = changeTags(tags ?? store.getTask(id).tags, { add: add_tags, remove: remove_tags });
+      return text(`Updated:\n${taskDetail(store.updateTask(id, patch))}`);
+    })
+  )
 );
 
 server.registerTool(
@@ -242,11 +280,13 @@ server.registerTool(
       position: z.enum(['top', 'bottom']).optional().describe('Where in the column (default bottom)'),
     },
   },
-  tool(({ id, column, position }) => {
-    const col = store.resolveColumn(column, store.getColumn(store.getTask(id).columnId).projectId);
-    const t = store.moveTask(id, { columnId: col.id, index: position === 'top' ? 0 : undefined });
-    return text(`Moved #${t.id} "${t.title}" to ${col.name}.`);
-  })
+  tool(({ id, column, position }) =>
+    write([{ type: 'move_task', task: id, column, position }], () => {
+      const col = store.resolveColumn(column, store.getColumn(store.getTask(id).columnId).projectId);
+      const t = store.moveTask(id, { columnId: col.id, index: position === 'top' ? 0 : undefined });
+      return text(`Moved #${t.id} "${t.title}" to ${col.name}.`);
+    })
+  )
 );
 
 server.registerTool(
@@ -256,11 +296,13 @@ server.registerTool(
     description: 'Mark a task done by moving it to the done column. Optionally record a completion note.',
     inputSchema: { id: taskId, note: z.string().optional().describe('Appended to the task note, e.g. a summary of what was done') },
   },
-  tool(({ id, note }) => {
-    if (note) store.appendNote(id, note);
-    const t = store.completeTask(id);
-    return text(`Completed #${t.id} "${t.title}" → ${columnName(t.columnId)}.`);
-  })
+  tool(({ id, note }) =>
+    write([...(note ? [{ type: 'add_note', task: id, text: note }] : []), { type: 'complete_task', task: id }], () => {
+      if (note) store.appendNote(id, note);
+      const t = store.completeTask(id);
+      return text(`Completed #${t.id} "${t.title}" → ${columnName(t.columnId)}.`);
+    })
+  )
 );
 
 server.registerTool(
@@ -270,10 +312,12 @@ server.registerTool(
     description: 'Archive a task (hides it from the board, recoverable) or restore it with archived: false.',
     inputSchema: { id: taskId, archived: z.boolean().default(true) },
   },
-  tool(({ id, archived }) => {
-    const t = store.archiveTask(id, archived);
-    return text(`${archived ? 'Archived' : 'Restored'} #${t.id} "${t.title}".`);
-  })
+  tool(({ id, archived }) =>
+    write([{ type: archived ? 'archive_task' : 'restore_task', task: id }], () => {
+      const t = store.archiveTask(id, archived);
+      return text(`${archived ? 'Archived' : 'Restored'} #${t.id} "${t.title}".`);
+    })
+  )
 );
 
 server.registerTool(
@@ -285,8 +329,10 @@ server.registerTool(
   },
   tool(({ id, text: line }) => {
     const stamp = new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-    const t = store.appendNote(id, `[${stamp}] ${line}`);
-    return text(`Note on #${t.id} is now:\n${t.note}`);
+    return write([{ type: 'add_note', task: id, text: `[${stamp}] ${line}` }], () => {
+      const t = store.appendNote(id, `[${stamp}] ${line}`);
+      return text(`Note on #${t.id} is now:\n${t.note}`);
+    });
   })
 );
 
@@ -297,10 +343,12 @@ server.registerTool(
     description: 'Add one or more checklist subtasks to a task.',
     inputSchema: { task_id: taskId, titles: z.array(z.string().min(1)).min(1) },
   },
-  tool(({ task_id, titles }) => {
-    for (const title of titles) store.addSubtask(task_id, title);
-    return text(taskDetail(store.getTask(task_id)));
-  })
+  tool(({ task_id, titles }) =>
+    write([{ type: 'add_subtasks', task: task_id, subtasks: titles }], () => {
+      for (const title of titles) store.addSubtask(task_id, title);
+      return text(taskDetail(store.getTask(task_id)));
+    })
+  )
 );
 
 server.registerTool(
@@ -310,10 +358,12 @@ server.registerTool(
     description: 'Check/uncheck or rename a subtask. Subtask ids are shown in get_task as (id).',
     inputSchema: { id: z.coerce.number().int().positive(), done: z.boolean().optional(), title: z.string().min(1).optional() },
   },
-  tool(({ id, done, title }) => {
-    const s = store.updateSubtask(id, { done, title });
-    return text(`[${s.done ? 'x' : ' '}] (${s.id}) ${s.title} — on task #${s.taskId}`);
-  })
+  tool(({ id, done, title }) =>
+    write([{ type: 'update_subtask', subtask_id: id, done, title }], () => {
+      const s = store.updateSubtask(id, { done, title });
+      return text(`[${s.done ? 'x' : ' '}] (${s.id}) ${s.title} — on task #${s.taskId}`);
+    })
+  )
 );
 
 server.registerTool(
@@ -324,10 +374,12 @@ server.registerTool(
     inputSchema: { id: z.coerce.number().int().positive() },
     annotations: { destructiveHint: true },
   },
-  tool(({ id }) => {
-    const r = store.deleteSubtask(id);
-    return text(`Deleted subtask ${r.deleted} from task #${r.taskId}.`);
-  })
+  tool(({ id }) =>
+    write([{ type: 'delete_subtask', subtask_id: id }], () => {
+      const r = store.deleteSubtask(id);
+      return text(`Deleted subtask ${r.deleted} from task #${r.taskId}.`);
+    })
+  )
 );
 
 server.registerTool(
@@ -357,7 +409,10 @@ server.registerTool(
       projects
         .map((p, i) => {
           const s = p.stats;
-          const cols = s.columns.filter((c) => !c.hidden).map((c) => `${c.name} ${c.count}`).join(' · ');
+          const cols = s.columns
+            .filter((c) => !c.hidden)
+            .map((c) => `${c.name} ${c.count}`)
+            .join(' · ');
           const flags = [s.overdue && `${s.overdue} overdue`, s.dueWeek && `${s.dueWeek} due this week`].filter(Boolean).join(', ');
           const tags = p.tags?.length ? ` ${p.tags.map((g) => `#${g}`).join(' ')}` : '';
           const prio = p.priority !== 'none' ? ` [${p.priority} priority]` : '';
@@ -381,10 +436,12 @@ server.registerTool(
       tags: tagList.optional(),
     },
   },
-  tool(({ name, icon, description, priority, tags }) => {
-    const p = store.createProject({ name, icon, description, priority, tags });
-    return text(`Created project ${p.icon} ${p.name} (id ${p.id})${p.tags.length ? ` tagged ${p.tags.join(', ')}` : ''}.`);
-  })
+  tool(({ name, icon, description, priority, tags }) =>
+    write([{ type: 'create_project', name, icon, description, priority, tags }], () => {
+      const p = store.createProject({ name, icon, description, priority, tags });
+      return text(`Created project ${p.icon} ${p.name} (id ${p.id})${p.tags.length ? ` tagged ${p.tags.join(', ')}` : ''}.`);
+    })
+  )
 );
 
 server.registerTool(
@@ -403,12 +460,32 @@ server.registerTool(
       remove_tags: z.array(z.string()).optional(),
     },
   },
-  tool(({ project, tags, add_tags, remove_tags, ...rest }) => {
-    const current = store.resolveProject(project);
-    const patch = { ...rest };
-    if (tags !== undefined || add_tags || remove_tags) patch.tags = changeTags(tags ?? current.tags, { add: add_tags, remove: remove_tags });
-    const p = store.updateProject(current.id, patch);
-    return text(`Updated project ${p.icon} ${p.name} (id ${p.id}). Priority: ${p.priority}. Tags: ${p.tags.length ? p.tags.join(', ') : 'none'}.`);
+  tool(({ project, tags, add_tags, remove_tags, ...rest }) =>
+    write([{ type: 'update_project', project, ...rest, tags, add_tags, remove_tags }], () => {
+      const current = store.resolveProject(project);
+      const patch = { ...rest };
+      if (tags !== undefined || add_tags || remove_tags) patch.tags = changeTags(tags ?? current.tags, { add: add_tags, remove: remove_tags });
+      const p = store.updateProject(current.id, patch);
+      return text(`Updated project ${p.icon} ${p.name} (id ${p.id}). Priority: ${p.priority}. Tags: ${p.tags.length ? p.tags.join(', ') : 'none'}.`);
+    })
+  )
+);
+
+server.registerTool(
+  'get_request',
+  {
+    title: 'Check a change request',
+    description: 'When the user approves changes in the app, write tools return a request id. Use this to see whether it was applied or dismissed, and the ids of anything it created.',
+    inputSchema: { id: z.coerce.number().int().positive().describe('Request id returned by a write tool') },
+    annotations: { readOnlyHint: true },
+  },
+  tool(({ id }) => {
+    const p = store.getProposal(id);
+    if (p.status === 'pending') return text(`Request ${p.id} is still waiting for the user's approval.`);
+    if (p.status === 'dismissed') return text(`The user dismissed request ${p.id}. Nothing was changed.`);
+    const lines = p.result.applied.map((a) => `- ${a.verb} ${a.summary}${a.taskId ? ` → task #${a.taskId}` : ''}${a.projectId ? ` → project id ${a.projectId}` : ''}`);
+    const skipped = p.items.filter((i) => i.ok).length - p.result.applied.length;
+    return text(`The user applied request ${p.id}:\n${lines.join('\n')}${skipped > 0 ? `\n(${skipped} change${skipped === 1 ? ' was' : 's were'} left out by the user)` : ''}`);
   })
 );
 

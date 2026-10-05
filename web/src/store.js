@@ -7,6 +7,10 @@ const sortByPos = (a, b) => a.position - b.position;
 const replaceTask = (tasks, task) => tasks.map((t) => (t.id === task.id ? task : t));
 const patchTask = (tasks, id, patch) => tasks.map((t) => (t.id === id ? { ...t, ...patch } : t));
 
+/** Set by the agent inbox to announce requests that arrive while the app is open. */
+let onNewProposal = null;
+export const setProposalListener = (fn) => (onNewProposal = fn);
+
 export const useBoard = create((set, get) => {
   /** Apply a change locally, send it, then reconcile with the server's answer (or roll back by reloading). */
   async function optimistic(apply, call, reconcile) {
@@ -54,6 +58,7 @@ export const useBoard = create((set, get) => {
     /** Reload whatever is on screen: the home page or the open project's board. */
     async load() {
       const { projectId, dragging } = get();
+      get().loadProposals();
       if (dragging) return;
       if (projectId == null) return get().loadHome();
       try {
@@ -63,6 +68,26 @@ export const useBoard = create((set, get) => {
         if (err.status === 404) return get().openProject(null);
         toast.error(`Could not load board: ${err.message}`);
       }
+    },
+
+    // ---------- agent requests (MCP changes waiting for approval) ----------
+
+    proposals: [],
+    proposalsLoaded: false,
+    async loadProposals() {
+      try {
+        const next = await api.proposals();
+        const { proposals: prev, proposalsLoaded } = get();
+        set({ proposals: next, proposalsLoaded: true });
+        // a gentle nudge for requests that arrived while the app was open
+        if (proposalsLoaded) for (const p of next.filter((n) => !prev.some((o) => o.id === n.id))) onNewProposal?.(p);
+      } catch {}
+    },
+    async decideProposal(id, approve, selected) {
+      const res = approve ? await api.approveProposal(id, selected) : await api.dismissProposal(id);
+      set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
+      get().load();
+      return res;
     },
 
     async loadHome() {

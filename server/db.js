@@ -194,6 +194,25 @@ function migrate() {
       db.exec('PRAGMA user_version = 5');
     });
   }
+  if (user_version < 6) {
+    // v6: changes agents propose while "ask me first" is on, waiting for the user
+    tx(() => {
+      db.exec(`
+        CREATE TABLE proposals (
+          id         INTEGER PRIMARY KEY,
+          agent      TEXT    NOT NULL DEFAULT 'An agent',
+          actions    TEXT    NOT NULL,
+          items      TEXT    NOT NULL,
+          status     TEXT    NOT NULL DEFAULT 'pending',
+          result     TEXT,
+          created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+          decided_at TEXT
+        );
+        CREATE INDEX proposals_status ON proposals(status, id);
+      `);
+      db.exec('PRAGMA user_version = 6');
+    });
+  }
 }
 
 const DEFAULT_COLUMNS = [
@@ -1118,6 +1137,70 @@ export function updateLlmSettings(patch = {}) {
     for (const k of ['sttModel', 'ttsModel', 'ttsVoice']) if (patch[k] !== undefined) next[k] = cleanText(patch[k], k, { max: 200 }).trim();
     setSetting('llm', next);
     return getLlmSettings();
+  });
+}
+
+// ---------- agents: approval mode and proposals ----------
+
+/** 'ask': agents' changes wait for approval (default). 'auto': they apply straight away. */
+export function getAgentSettings() {
+  return { approval: 'ask', ...getSetting('agents', {}) };
+}
+
+export function updateAgentSettings(patch = {}) {
+  return tx(() => {
+    const next = getAgentSettings();
+    if (patch.approval !== undefined) {
+      if (!['ask', 'auto'].includes(patch.approval)) throw new AppError(400, 'approval must be "ask" or "auto"');
+      next.approval = patch.approval;
+    }
+    setSetting('agents', next);
+    return next;
+  });
+}
+
+const mapProposal = (r) =>
+  r && {
+    id: r.id,
+    agent: r.agent,
+    actions: JSON.parse(r.actions),
+    items: JSON.parse(r.items),
+    status: r.status,
+    result: r.result ? JSON.parse(r.result) : null,
+    createdAt: r.created_at,
+    decidedAt: r.decided_at,
+  };
+
+export function createProposal({ agent, actions, items }) {
+  return tx(() => {
+    const id = Number(
+      q('INSERT INTO proposals (agent, actions, items) VALUES (?, ?, ?)').run(cleanText(agent || 'An agent', 'agent', { max: 80 }) || 'An agent', JSON.stringify(actions), JSON.stringify(items)).lastInsertRowid
+    );
+    return getProposal(id);
+  });
+}
+
+export function getProposal(id) {
+  const p = mapProposal(q('SELECT * FROM proposals WHERE id = ?').get(Number(id)));
+  if (!p) throw new AppError(404, `Request ${id} not found`);
+  return p;
+}
+
+/** Pending requests (oldest first), or recently decided ones (newest first). */
+export function listProposals({ status = 'pending', limit = 50 } = {}) {
+  const rows =
+    status === 'pending'
+      ? q("SELECT * FROM proposals WHERE status = 'pending' ORDER BY id LIMIT ?").all(limit)
+      : q("SELECT * FROM proposals WHERE status != 'pending' ORDER BY decided_at DESC, id DESC LIMIT ?").all(limit);
+  return rows.map(mapProposal);
+}
+
+export function decideProposal(id, { status, result = null }) {
+  return tx(() => {
+    const p = getProposal(id);
+    if (p.status !== 'pending') throw new AppError(409, `This request was already ${p.status}.`);
+    q('UPDATE proposals SET status = ?, result = ?, decided_at = ? WHERE id = ?').run(status, result ? JSON.stringify(result) : null, now(), p.id);
+    return getProposal(p.id);
   });
 }
 

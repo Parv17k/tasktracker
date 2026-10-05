@@ -39,6 +39,12 @@ export const api = {
 
   tags: () => request('GET', '/api/tags'),
   timeline: () => request('GET', '/api/timeline'),
+
+  proposals: (status = 'pending') => request('GET', `/api/proposals?status=${status}`),
+  approveProposal: (id, selected) => request('POST', `/api/proposals/${id}/apply`, { selected }),
+  dismissProposal: (id) => request('POST', `/api/proposals/${id}/dismiss`),
+  agentSettings: () => request('GET', '/api/settings/agents'),
+  updateAgentSettings: (patch) => request('PATCH', '/api/settings/agents', patch),
   updateTag: (id, patch) => request('PATCH', `/api/tags/${id}`, patch),
   deleteTag: (id) => request('DELETE', `/api/tags/${id}`),
 };

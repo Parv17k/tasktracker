@@ -6,6 +6,7 @@ import { THEMES } from '../themes';
 import { navigate, projectPath } from '../router';
 import { InstallButton, RemindersButton } from './Reminders';
 import { ChatButton } from './Chat';
+import { AgentInboxButton } from './AgentInbox';
 import { ManageTagsDialog, TagFilter } from './Tags';
 import { Button, ColorDot, cx, IconButton, Popover, PopoverContent, PopoverTrigger, Tip } from './ui';
 
@@ -140,6 +141,7 @@ export const TopBar = forwardRef(function TopBar({ onOpenArchive }, searchRef) {
           </Button>
         </Tip>
 
+        <AgentInboxButton />
         <ChatButton />
         <RemindersButton />
         <ThemePicker />

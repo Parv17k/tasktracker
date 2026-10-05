@@ -30,6 +30,7 @@ import { DueChip } from './Due';
 import { Logo, ThemePicker } from './TopBar';
 import { InstallButton, RemindersButton } from './Reminders';
 import { ChatButton } from './Chat';
+import { AgentInboxButton } from './AgentInbox';
 import { ManageTagsDialog, TagChip, TagEditor, TagList, useTagColor } from './Tags';
 import { PRIORITY, PriorityIcon } from './TaskCard';
 import { HomeTimeline } from './TimelineViews';
@@ -117,6 +118,7 @@ export default function Home() {
           <Logo />
           <span className="font-display text-[20px] text-fg">Task Tracker</span>
           <div className="ml-auto flex items-center gap-2">
+            <AgentInboxButton />
             <ChatButton />
             <RemindersButton />
             <ThemePicker />

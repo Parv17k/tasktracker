@@ -1,6 +1,8 @@
-// Changes the chat assistant proposes. Nothing is written until the user approves:
-// preview() validates and describes each action for the approval card, apply() runs the
-// approved ones in one transaction through the same data layer as the board and MCP tools.
+// Changes proposed by the chat assistant or by agents (over MCP, in "ask me first" mode).
+// Nothing is written until the user approves: preview() validates and describes each action
+// for the approval card, apply() runs the approved ones in one transaction through the same
+// data layer as the board. Agents may also propose a few things the chat can't (deleting a
+// subtask, replacing a note), because those are tools they already have.
 import * as store from './db.js';
 import { dueInfo } from '../shared/due.js';
 import { changeTags } from '../shared/tags.js';
@@ -119,12 +121,26 @@ function resolveProjectRef(ref) {
   }
 }
 
+const AGENT_ONLY = new Set(['delete_subtask']);
+
+function subtaskRef(ref) {
+  const id = Number(ref);
+  if (!Number.isInteger(id) || id <= 0) fail('It didn’t say which subtask to change.');
+  for (const t of store.listTasks({ archived: 'all', limit: 1000 })) {
+    const sub = t.subtasks.find((s) => s.id === id);
+    if (sub) return { sub, task: t };
+  }
+  return fail(`Subtask ${id} doesn’t exist.`);
+}
+
 /**
  * Validates one action and returns { verb, summary, run }. Throws AppError with a
  * plain-language message when the action can't be applied.
+ * @param {'chat'|'agent'} source  who proposed it; the chat assistant can never delete
  */
-function plan(a) {
+function plan(a, source = 'chat') {
   if (!a || typeof a !== 'object' || Array.isArray(a)) fail('This change couldn’t be read.');
+  if (source === 'chat' && AGENT_ONLY.has(a.type)) fail(`“${a.type}” isn’t something the assistant can do.`);
   switch (a.type) {
     case 'create_task': {
       const project = resolveProjectRef(a.project);
@@ -133,6 +149,7 @@ function plan(a) {
       if (!column) fail(`${project.name} has no visible column to add tasks to.`);
       const title = text(a.title, 'task title', { required: true, max: 500 });
       const description = text(a.description, 'description', { max: 20000 });
+      const note = text(a.note, 'note', { max: 20000 });
       const p = priority(a.priority);
       const [dueAt, dueLabel] = due(a.due);
       const startAt = start(a.start);
@@ -143,7 +160,7 @@ function plan(a) {
       return {
         verb: 'Create',
         summary: `“${title}” in ${project.icon} ${project.name} › ${column.name}${extras.length ? ` · ${extras.join(' · ')}` : ''}`,
-        run: () => store.createTask({ projectId: project.id, columnId: column.id, title, description, priority: p, startAt: startAt || undefined, dueAt: dueAt || undefined, subtasks, tags }),
+        run: () => store.createTask({ projectId: project.id, columnId: column.id, title, description, note, priority: p, startAt: startAt || undefined, dueAt: dueAt || undefined, subtasks, tags }),
       };
     }
 
@@ -159,6 +176,10 @@ function plan(a) {
       if (a.description !== undefined) {
         const v = text(a.description, 'description', { max: 20000 }) ?? '';
         if (v !== t.description) (patch.description = v), changes.push(v ? 'new description' : 'clear description');
+      }
+      if (a.note !== undefined) {
+        const v = text(a.note, 'note', { max: 20000 }) ?? '';
+        if (v !== t.note) (patch.note = v), changes.push(v ? 'replace the note' : 'clear the note');
       }
       if (a.priority !== undefined) {
         const v = priority(a.priority);
@@ -190,7 +211,8 @@ function plan(a) {
       const from = columnOf(t);
       const to = resolveColumnIn(a.column, from.projectId);
       if (to.id === from.id) fail(`${label(t)} is already in ${to.name}.`);
-      return { verb: 'Move', summary: `${label(t)}: ${from.name} → ${to.name}`, run: () => store.moveTask(t.id, { columnId: to.id }) };
+      const top = a.position === 'top';
+      return { verb: 'Move', summary: `${label(t)}: ${from.name} → ${to.name}${top ? ' (top)' : ''}`, run: () => store.moveTask(t.id, { columnId: to.id, index: top ? 0 : undefined }) };
     }
 
     case 'complete_task': {
@@ -203,6 +225,12 @@ function plan(a) {
       const t = taskRef(a.task);
       if (t.archived) fail(`${label(t)} is already archived.`);
       return { verb: 'Archive', summary: `${label(t)} (you can restore it from the archive)`, run: () => store.archiveTask(t.id) };
+    }
+
+    case 'restore_task': {
+      const t = taskRef(a.task);
+      if (!t.archived) fail(`${label(t)} isn’t archived.`);
+      return { verb: 'Restore', summary: `${label(t)} from the archive`, run: () => store.archiveTask(t.id, false) };
     }
 
     case 'add_subtasks': {
@@ -221,6 +249,24 @@ function plan(a) {
       const done = a.done !== false;
       if (sub.done === done) fail(`“${sub.title}” is already ${done ? 'ticked' : 'unticked'}.`);
       return { verb: done ? 'Tick' : 'Untick', summary: `“${sub.title}” on ${label(t)}`, run: () => store.updateSubtask(sub.id, { done }) };
+    }
+
+    case 'update_subtask': {
+      const { sub, task } = subtaskRef(a.subtask_id);
+      const patch = {};
+      const changes = [];
+      if (a.title !== undefined) {
+        const v = text(a.title, 'subtask', { required: true, max: 500 });
+        if (v !== sub.title) (patch.title = v), changes.push(`rename to “${v}”`);
+      }
+      if (a.done !== undefined && !!a.done !== sub.done) (patch.done = !!a.done), changes.push(a.done ? 'tick' : 'untick');
+      if (!changes.length) fail(`“${sub.title}” already looks like that.`);
+      return { verb: 'Edit subtask', summary: `“${sub.title}” on ${label(task)}: ${changes.join(', ')}`, run: () => store.updateSubtask(sub.id, patch) };
+    }
+
+    case 'delete_subtask': {
+      const { sub, task } = subtaskRef(a.subtask_id);
+      return { verb: 'Delete subtask', summary: `“${sub.title}” from ${label(task)}`, run: () => store.deleteSubtask(sub.id) };
     }
 
     case 'add_note': {
@@ -248,12 +294,27 @@ function plan(a) {
       const project = resolveProjectRef(a.project);
       const patch = {};
       const changes = [];
+      if (a.name !== undefined) {
+        const v = text(a.name, 'project name', { required: true, max: 80 });
+        if (v !== project.name) (patch.name = v), changes.push(`rename to “${v}”`);
+      }
+      if (a.icon !== undefined) {
+        const v = text(a.icon, 'icon', { required: true, max: 16 });
+        if (v !== project.icon) (patch.icon = v), changes.push(`icon → ${v}`);
+      }
+      if (a.description !== undefined) {
+        const v = text(a.description, 'project description', { max: 280 }) ?? '';
+        if (v !== project.description) (patch.description = v), changes.push(v ? 'new description' : 'clear description');
+      }
       if (a.priority !== undefined) {
         const p = priority(a.priority);
         if (p !== project.priority) (patch.priority = p), changes.push(`priority → ${p}`);
       }
-      if (a.add_tags !== undefined || a.remove_tags !== undefined) {
-        const c = tagChange(project.tags, tagNames(a.add_tags), tagNames(a.remove_tags, 'tags to remove'));
+      if (a.add_tags !== undefined || a.remove_tags !== undefined || a.tags !== undefined) {
+        const base = a.tags !== undefined ? tagNames(a.tags) : null;
+        const c = base
+          ? tagChange(project.tags, base, project.tags.filter((x) => !base.some((y) => y.toLowerCase() === x.toLowerCase())))
+          : tagChange(project.tags, tagNames(a.add_tags), tagNames(a.remove_tags, 'tags to remove'));
         if (c) (patch.tags = c.next), changes.push(`tags: ${c.summary}`);
       }
       if (!changes.length) fail(`${project.icon} ${project.name} already looks like that.`);
@@ -261,7 +322,7 @@ function plan(a) {
     }
 
     default:
-      return fail(a.type ? `“${a.type}” isn’t something the assistant can do.` : 'This change couldn’t be read.');
+      return fail(a.type ? `“${a.type}” isn’t something ${source === 'chat' ? 'the assistant' : 'Task Tracker'} can do.` : 'This change couldn’t be read.');
   }
 }
 
@@ -271,11 +332,11 @@ function checkList(actions) {
 }
 
 /** Describe each proposed action without changing anything. */
-export function preview(actions) {
+export function preview(actions, { source = 'chat' } = {}) {
   checkList(actions);
   return actions.map((a) => {
     try {
-      const { verb, summary } = plan(a);
+      const { verb, summary } = plan(a, source);
       return { ok: true, verb, summary };
     } catch (err) {
       if (!(err instanceof store.AppError)) throw err;
@@ -284,16 +345,24 @@ export function preview(actions) {
   });
 }
 
+/** What an applied change created or touched, so an agent can refer to it afterwards. */
+function refOf(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  if ('columnId' in value) return { taskId: value.id };
+  if ('icon' in value && 'archived' in value) return { projectId: value.id };
+  return undefined;
+}
+
 /** Apply approved actions, all or nothing. Later actions see the effects of earlier ones. */
-export function apply(actions) {
+export function apply(actions, { source = 'chat' } = {}) {
   checkList(actions);
   const done = [];
   try {
     store.transaction(() => {
       for (const a of actions) {
-        const step = plan(a);
-        step.run();
-        done.push({ verb: step.verb, summary: step.summary });
+        const step = plan(a, source);
+        const value = step.run();
+        done.push({ verb: step.verb, summary: step.summary, ...refOf(value) });
       }
     });
   } catch (err) {
@@ -301,4 +370,27 @@ export function apply(actions) {
     throw new store.AppError(400, `Nothing was changed. ${err.message}`);
   }
   return { applied: done };
+}
+
+// ---------- agent requests ("ask me first") ----------
+
+/** Queue an agent's changes for approval. Throws if none of them could be applied. */
+export function propose({ agent, actions }) {
+  const items = preview(actions, { source: 'agent' });
+  if (!items.some((i) => i.ok)) fail(items.map((i) => i.summary).join(' '));
+  return store.createProposal({ agent, actions, items });
+}
+
+/** Apply the chosen changes of a pending request (all by default). */
+export function approve(id, selected) {
+  const p = store.getProposal(id);
+  if (p.status !== 'pending') throw new store.AppError(409, `This request was already ${p.status}.`);
+  const chosen = p.actions.filter((_, i) => p.items[i]?.ok && (!Array.isArray(selected) || selected[i]));
+  if (!chosen.length) return dismiss(id);
+  const result = apply(chosen, { source: 'agent' });
+  return store.decideProposal(id, { status: 'applied', result });
+}
+
+export function dismiss(id) {
+  return store.decideProposal(id, { status: 'dismissed' });
 }
