@@ -7,23 +7,21 @@
 
 <br />
 
-**A calm, beautiful, local-first task board with an AI assistant you can talk to.**
+### The local-first task board for you and your AI agents.
 
-Ask it what matters today. Let it reschedule with your OK. Plan on a timeline. Keep every byte on your machine.
+Claude and Cursor plan and update tasks over MCP while you watch live. The built-in assistant asks before it changes anything.<br />
+Nothing leaves your machine, and keeping up with your agents takes one calm glance, not another inbox.
 
+[![MCP](https://img.shields.io/badge/MCP-18_tools-8a63d2)](#-work-with-your-ai-agents-mcp)
+[![Local-first](https://img.shields.io/badge/local--first-one_SQLite_file-0f80cc?logo=sqlite&logoColor=white)](#-who-its-for)
+[![AI](https://img.shields.io/badge/assistant-chat_%C2%B7_voice_%C2%B7_approvals-10a37f)](#-the-built-in-assistant)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.13-3c873a?logo=node.js&logoColor=white)](https://nodejs.org)
-[![React 19](https://img.shields.io/badge/react-19-149eca?logo=react&logoColor=white)](https://react.dev)
-[![SQLite](https://img.shields.io/badge/sqlite-built--in-0f80cc?logo=sqlite&logoColor=white)](https://nodejs.org/api/sqlite.html)
-[![AI chat](https://img.shields.io/badge/AI-chat_%C2%B7_voice_%C2%B7_actions-10a37f)](#-ai-built-in)
-[![MCP](https://img.shields.io/badge/MCP-18_tools-8a63d2)](#-plug-in-your-ai-agent-mcp)
-[![Timeline](https://img.shields.io/badge/Gantt-timeline-e8a33d)](#%EF%B8%8F-timeline-plan-across-time-drag-to-reschedule)
-[![Installable](https://img.shields.io/badge/PWA-installable-5a0fc8)](#-install-it-and-get-reminders)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg)](CONTRIBUTING.md)
 
 <br />
 
-<img src="docs/screenshots/chat.png" alt="Asking Task Tracker what to focus on today: the AI ranks tasks due in the next few hours, due today, and overdue" width="100%" />
+<img src="docs/screenshots/chat.png" alt="Asking Task Tracker what to focus on today: the assistant ranks tasks due in the next few hours, due today, and overdue" width="100%" />
 
 <sub>A real, unedited answer from a self-hosted open model, grounded in the board behind it.</sub>
 
@@ -31,20 +29,58 @@ Ask it what matters today. Let it reschedule with your OK. Plan on a timeline. K
 
 <br />
 
-## Why Task Tracker?
+<table>
+<tr>
+<td width="33%" valign="top">
 
-Most task apps are either cloud-hosted and heavy, or plain text and bare. Task Tracker sits in between, and it's built to work **with** AI:
+### 🤖 Agents work on your board
+Claude Code, Cursor and any MCP client get **18 tools** to plan work, break it into subtasks, log progress and finish tasks. Their changes appear on your board **live**, through the same rules you use.
 
-- ✨ **An assistant that knows your board.** Ask "What should I focus on today?" or "What's slipping?" and get answers grounded in your real tasks, from any OpenAI-compatible model, cloud or local.
-- ✅ **It can act, but only with your OK.** "Move the overdue ones to Friday." It proposes the changes on an approval card; nothing happens until you tap **Apply**.
-- 🎙️ **Talk to it.** Speak your question, hear the answer, and keep going hands-free.
-- 🗓️ **See your work across time.** A calm Gantt timeline for each project and for everything at once, and you drag a bar to reschedule.
-- 🤖 **Agents are first-class users.** A built-in [MCP](https://modelcontextprotocol.io) server gives Claude, Cursor and other agents 18 tools, and their changes appear on your board live.
-- 🏷️ **Organised your way.** Projects with priorities, colour tags on tasks and projects, deadlines that read like a human wrote them.
-- 🧘 **Low cognitive load.** One click to open a card, no Save buttons, calm defaults. Everything autosaves.
-- 🔔 **Never miss a deadline.** Install it as an app and get notifications before things are due, even when the window is closed.
-- 🏠 **Local-first.** One SQLite file on your machine. No account, no cloud, no telemetry. Pair it with a local model and nothing leaves your computer.
-- 🎨 **Pleasant to look at.** Twenty-four focus-friendly themes, from warm Paper to neon Terminal.
+</td>
+<td width="33%" valign="top">
+
+### ✅ You stay in charge
+The built-in assistant **proposes, you approve**: every change it suggests waits on an approval card until you tap **Apply**. It can't delete anything, and changes apply all-or-nothing.
+
+</td>
+<td width="33%" valign="top">
+
+### 🏠 It stays on your machine
+**One SQLite file.** No account, no cloud, no telemetry. Pair it with Ollama or LM Studio and even the AI runs locally.
+
+</td>
+</tr>
+</table>
+
+## 💭 Why I built this
+
+In the agentic AI era, the hard part isn't getting AI to do work. It's keeping up with it. Every new agent is one more thing to watch, one more place where work happens, one more stream of updates to read.
+
+I wanted the opposite: a task board that gets **calmer** as AI gets more capable. One place where my agents and I share the same list, where I can see what happened at a glance, where nothing changes behind my back, and where the screen stays quiet enough to think. Task Tracker is that board.
+
+## 🙋 Who it's for
+
+| You are… | What Task Tracker gives you |
+| --- | --- |
+| **A developer working with coding agents** | Your agent plans the work, breaks it into subtasks, logs progress in notes and completes tasks over MCP. You see all of it on one board, live. |
+| **Privacy-first** | Everything local: one SQLite file, no account. Run the assistant on Ollama or LM Studio and nothing leaves your machine. |
+| **Easily overwhelmed by tools** | Four columns, no Save buttons, deadlines in plain words, and an assistant you can ask "What should I focus on today?", by typing or by voice. |
+| **An AI power user** | Humans, the assistant and agents all go through one data layer, so the rules always match. Plan on a timeline and drag to reschedule. |
+
+**Who it's not for:** teams that need shared boards and permissions, sync across devices through a cloud account, or enterprise project management with resource planning. Task Tracker is for individuals who want calm over features, local over cloud, and AI as a helper rather than a replacement.
+
+## 🧘 Calm, defined
+
+"Calm" isn't a mood here; it's a set of promises:
+
+- **Four columns to start**, not a workflow designer.
+- **Everything autosaves.** There's no Save button anywhere.
+- **Deadlines read like a person wrote them:** *Due in 3h*, *Overdue by 2d*.
+- **AI proposes, you approve**, in one click, with every change spelled out in plain words.
+- **Agents show up where you already look:** on the board, live, with no extra dashboard to check.
+- **Each reminder fires once**, and a burst arrives as a single summary.
+- **Errors are plain sentences** with a next step, never a stack trace.
+- **What you don't need is folded away:** undated tasks, hidden columns and the archive stay out of sight until you ask.
 
 ## Quick start
 
@@ -57,7 +93,64 @@ npm start        # → http://localhost:1717
 
 That's it. No database to install and no config files. SQLite is built into Node 22.13+, so there's nothing native to compile either.
 
-## ✨ AI, built in
+## 🤖 Work with your AI agents (MCP)
+
+Task Tracker ships with a [Model Context Protocol](https://modelcontextprotocol.io) server, so your agent can keep track of its own work, or yours.
+
+**Claude Code**
+
+```bash
+claude mcp add tasktracker -- node /absolute/path/to/tasktracker/mcp/index.js
+```
+
+**Claude Desktop, Cursor, Windsurf and other MCP clients**
+
+```json
+{
+  "mcpServers": {
+    "tasktracker": {
+      "command": "node",
+      "args": ["/absolute/path/to/tasktracker/mcp/index.js"]
+    }
+  }
+}
+```
+
+Then just ask:
+
+> *"What's overdue across all my projects?"*
+> *"Break task #3 into subtasks, tag it #backend and move it to In Progress."*
+> *"Log what you just did on #12 and mark it complete."*
+
+<details>
+<summary><b>All 18 MCP tools</b></summary>
+
+| Tool | What it does |
+| --- | --- |
+| `list_projects` | Every project with priority, tags, task counts per column and deadlines. A good first call |
+| `create_project` | New project with its own board, priority and tags |
+| `update_project` | Rename, re-icon, set priority, or add/remove tags |
+| `get_board` | Columns and tasks of one project (`project: "website"`, fuzzy) |
+| `list_tasks` | Search across all projects or one: column, text, `tag`, `due_within_days`, `overdue`, archived |
+| `get_task` | Full details, including subtask ids |
+| `create_task` | Project, column, title, description, note, priority, start and due dates, subtasks, tags |
+| `update_task` | Change any field (`due: ""` / `start: ""` clear dates), `add_tags` / `remove_tags` |
+| `move_task` | Move by column name (fuzzy: `"in prog"` works) or id |
+| `complete_task` | Move to the done column, optionally appending a summary |
+| `archive_task` | Archive, or restore with `archived: false` |
+| `append_note` | Add a timestamped line to the note (great for progress logs) |
+| `add_subtasks` | Add checklist items |
+| `update_subtask` | Check, uncheck or rename a subtask |
+| `delete_subtask` | Remove a subtask |
+| `track_time` | Start or stop the time-spent timer |
+| `list_columns` | A project's columns with ids, hidden flags and the done column |
+| `list_tags` | Every tag with how many tasks and projects use it |
+
+</details>
+
+The agent writes straight to the same SQLite file, so the web server doesn't even need to be running. If it is, open tabs **update live** within about half a second.
+
+## ✨ The built-in assistant
 
 Click ✨ in the top bar. Connect any OpenAI-compatible provider once (one-click presets for **OpenAI, OpenRouter, Groq, Ollama and LM Studio**), and your board gains an assistant.
 
@@ -229,63 +322,6 @@ Twenty-four themes designed for focus. Switch instantly from the brush icon; you
 
 Also included: **Paper** · **New York** · **Nordic Frost** · **Sage Garden** · **Espresso Library** · **Graphite** · **Grayscale Dark** · **Crimson** · **Ivy** · **Cardinal** · **Sunset Orange** · **Harbor Gold**
 
-## 🤖 Plug in your AI agent (MCP)
-
-Task Tracker ships with a [Model Context Protocol](https://modelcontextprotocol.io) server, so your agent can keep track of its own work, or yours.
-
-**Claude Code**
-
-```bash
-claude mcp add tasktracker -- node /absolute/path/to/tasktracker/mcp/index.js
-```
-
-**Claude Desktop, Cursor, Windsurf and other MCP clients**
-
-```json
-{
-  "mcpServers": {
-    "tasktracker": {
-      "command": "node",
-      "args": ["/absolute/path/to/tasktracker/mcp/index.js"]
-    }
-  }
-}
-```
-
-Then just ask:
-
-> *"What's overdue across all my projects?"*
-> *"Break task #3 into subtasks, tag it #backend and move it to In Progress."*
-> *"Log what you just did on #12 and mark it complete."*
-
-<details>
-<summary><b>All 18 MCP tools</b></summary>
-
-| Tool | What it does |
-| --- | --- |
-| `list_projects` | Every project with priority, tags, task counts per column and deadlines. A good first call |
-| `create_project` | New project with its own board, priority and tags |
-| `update_project` | Rename, re-icon, set priority, or add/remove tags |
-| `get_board` | Columns and tasks of one project (`project: "website"`, fuzzy) |
-| `list_tasks` | Search across all projects or one: column, text, `tag`, `due_within_days`, `overdue`, archived |
-| `get_task` | Full details, including subtask ids |
-| `create_task` | Project, column, title, description, note, priority, start and due dates, subtasks, tags |
-| `update_task` | Change any field (`due: ""` / `start: ""` clear dates), `add_tags` / `remove_tags` |
-| `move_task` | Move by column name (fuzzy: `"in prog"` works) or id |
-| `complete_task` | Move to the done column, optionally appending a summary |
-| `archive_task` | Archive, or restore with `archived: false` |
-| `append_note` | Add a timestamped line to the note (great for progress logs) |
-| `add_subtasks` | Add checklist items |
-| `update_subtask` | Check, uncheck or rename a subtask |
-| `delete_subtask` | Remove a subtask |
-| `track_time` | Start or stop the time-spent timer |
-| `list_columns` | A project's columns with ids, hidden flags and the done column |
-| `list_tags` | Every tag with how many tasks and projects use it |
-
-</details>
-
-The agent writes straight to the same SQLite file, so the web server doesn't even need to be running. If it is, open tabs **update live** within about half a second.
-
 ## 🏗️ How it works
 
 ```mermaid
@@ -340,7 +376,14 @@ flowchart LR
     style node fill:transparent,stroke:#94a3b8,stroke-width:1px,stroke-dasharray:6 4,color:#64748b
 ```
 
-### ✨ Ask: from your question to an answer, and changes you approve
+- **One data layer** (`server/db.js`) holds every business rule, shared by the API, the assistant and the MCP server, so humans and agents always behave the same way.
+- **Grounded chat without tool calling:** the server sends the model a compact, budgeted snapshot of your board, and the model proposes changes as a small structured block that the app validates and shows for approval. It works even with small local models. Your API key never reaches the browser.
+- **Live sync without polling the API:** the server watches SQLite's `PRAGMA data_version` and pushes changes from other processes to browsers over Server-Sent Events.
+- **WAL mode** lets the web app and an agent write at the same time.
+- **Optimistic UI** with fractional ordering means drag & drop, on the board or the timeline, never waits on the server.
+
+<details>
+<summary><b>✨ Ask: from your question to an answer, and changes you approve</b></summary>
 
 ```mermaid
 sequenceDiagram
@@ -370,7 +413,10 @@ sequenceDiagram
     end
 ```
 
-### ⚡ Live sync: an agent completes a task and your board updates
+</details>
+
+<details>
+<summary><b>⚡ Live sync: an agent completes a task and your board updates</b></summary>
 
 ```mermaid
 sequenceDiagram
@@ -394,7 +440,10 @@ sequenceDiagram
     Note over UI: Card glides into Done ✨<br/>no refresh needed
 ```
 
-### 🔔 Reminders: from a deadline to your screen
+</details>
+
+<details>
+<summary><b>🔔 Reminders: from a deadline to your screen</b></summary>
 
 ```mermaid
 sequenceDiagram
@@ -417,11 +466,7 @@ sequenceDiagram
     SW-->>You: opens that task
 ```
 
-- **One data layer** (`server/db.js`) holds every business rule, shared by the API, the assistant and the MCP server, so humans and agents always behave the same way.
-- **Grounded chat without tool calling:** the server sends the model a compact, budgeted snapshot of your board, and the model proposes changes as a small structured block that the app validates and shows for approval. It works even with small local models. Your API key never reaches the browser.
-- **Live sync without polling the API:** the server watches SQLite's `PRAGMA data_version` and pushes changes from other processes to browsers over Server-Sent Events.
-- **WAL mode** lets the web app and an agent write at the same time.
-- **Optimistic UI** with fractional ordering means drag & drop, on the board or the timeline, never waits on the server.
+</details>
 
 | Layer | Tech |
 | --- | --- |
