@@ -130,13 +130,13 @@ Then just ask:
 | Tool | What it does |
 | --- | --- |
 | `list_projects` | Every project with priority, tags, task counts per column and deadlines. A good first call |
-| `create_project` | New project with its own board, priority and tags |
-| `update_project` | Rename, re-icon, set priority, or add/remove tags |
+| `create_project` | New project with its own board, priority, tags and optional hourly rate |
+| `update_project` | Rename, re-icon, set priority or hourly rate, or add/remove tags |
 | `get_board` | Columns and tasks of one project (`project: "website"`, fuzzy) |
 | `list_tasks` | Search across all projects or one: column, text, `tag`, `due_within_days`, `overdue`, archived |
 | `get_task` | Full details, including subtask ids |
-| `create_task` | Project, column, title, description, note, priority, start and due dates, subtasks, tags |
-| `update_task` | Change any field (`due: ""` / `start: ""` clear dates), `add_tags` / `remove_tags` |
+| `create_task` | Project, column, title, description, note (Markdown), priority, start and due dates, estimate, subtasks, tags |
+| `update_task` | Change any field incl. `estimate` (`""` clears dates or the estimate), `add_tags` / `remove_tags` |
 | `move_task` | Move by column name (fuzzy: `"in prog"` works) or id |
 | `complete_task` | Move to the done column, optionally appending a summary |
 | `archive_task` | Archive, or restore with `archived: false` |
@@ -278,8 +278,8 @@ On the home page, switch **Projects** to **Timeline** to see every project at on
 <td width="50%" valign="top">
 
 #### Rich, frictionless cards
-- Title, description, **subtasks** with a progress bar, and a lined **note** pad
-- **Priority** from Low to Urgent, and colour **tags**: click one to filter the board
+- Title, description, **subtasks** with a progress bar, and a **Markdown note** with Mermaid diagrams
+- **Priority** from Low to Urgent, colour **tags** (click one to filter the board), and an optional **estimate** (XS–XL or exact)
 - **Archive** with one click (with Undo); restore or delete from the archive
 - **Search** finds text in any field, including tags
 
@@ -301,11 +301,11 @@ On the home page, switch **Projects** to **Timeline** to see every project at on
 Press <kbd>N</kbd> and type naturally:
 
 ```
-Send invoice to Acme @fri !high #finance
+Send invoice to Acme @fri !high #finance ~2h
 ```
 
 - `@today` `@tomorrow` `@mon`…`@sun` `@nextweek` `@3d` `@2w` `@2026-12-01` set the deadline
-- `!low` `!med` `!high` `!urgent` set the priority, `#finance` adds a tag
+- `!low` `!med` `!high` `!urgent` set the priority, `#finance` adds a tag, `~2h` or `~M` sets the estimate
 - <kbd>/</kbd> to search, <kbd>Esc</kbd> to close
 
 </td>
@@ -314,8 +314,24 @@ Send invoice to Acme @fri !high #finance
 
 <div align="center">
 <img src="docs/screenshots/task-detail.png" alt="Task detail panel with status, priority, deadline, start date, time spent, tags and subtasks" width="100%" />
-<br /><sub>Every field autosaves. Status, priority, deadline, start date, timer, tags, subtasks and note live in one calm panel.</sub>
+<br /><sub>Every field autosaves. Status, priority, deadline, start date, estimate, timer, tags, subtasks and note live in one calm panel.</sub>
 </div>
+
+### ⏱️ Estimates and cost, only where you want them
+
+- **Size a task in one tap:** XS (30m) · S (1h) · M (4h) · L (1d) · XL (3d), or type an exact amount like `90m` or `2.5h`.
+- **See it against reality:** the panel shows *"3h 10m tracked of ~4h"*, and the card's chip turns amber when you go over.
+- **Totals where they help:** column headers show *~9h* of estimated work, project cards show *~32h left*.
+- **Cost, if you bill by the hour:** give a project an hourly rate and currency, and estimates and tracked time turn into *~$320 est., $253 so far*. No rate, no money on screen.
+- Tasks without an estimate look exactly as before.
+
+### 📝 Notes in Markdown, with diagrams
+
+- Notes are **formatted by default**: headings, lists, tables, code, links. **Click to write**, Esc to finish; it autosaves.
+- **Checklists you can tick** right in the formatted note (`- [ ] item`).
+- **Mermaid diagrams:** a ` ```mermaid ` block becomes a flowchart, sequence or Gantt diagram, themed to match.
+- **Expand** for a roomy side-by-side writer: Markdown on the left, the result on the right.
+- Agents' progress logs still read one entry per line, and nothing in a note can run scripts.
 
 ### 🏷️ Tags that stay tidy
 - Shared by tasks and projects, with suggestions as you type and a stable colour per tag
@@ -569,6 +585,8 @@ The AI provider (and optional voice models) is configured in the app (✨ → se
 Task Tracker is young and moving fast. Here's where it's heading, and **every item is open for contributors**. Comment on an issue (or open one) to claim it.
 
 ### ✅ Recently shipped
+- ⏱️ **Estimates and cost**: XS–XL sizes or exact amounts, over-estimate hints, per-project hourly rate
+- 📝 **Markdown notes** with tickable checklists and Mermaid diagrams
 - 🤝 **Multi-agent safety**: "working on it" claims that expire on their own, and warnings for changes made since an agent asked
 - ✋ **Agents ask first**: MCP changes wait in an approval inbox (or apply right away, your choice)
 - 🎙️ **Voice**: talk to the assistant and hear it answer, hands-free

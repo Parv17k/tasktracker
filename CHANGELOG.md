@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- ⏱️ **Estimates:** size tasks XS–XL (30m to 3d) or set an exact amount; see tracked time against it, with an amber hint when over. Totals on column headers and project cards. Quick add: `~2h`, `~M`.
+- 💰 **Cost:** an optional hourly rate and currency per project turns estimates and tracked time into cost. Hidden unless a rate is set.
+- 📝 **Markdown notes:** formatted by default, click to write, tickable checklists, tables and code, ` ```mermaid ` diagrams, and an expanded side-by-side writer.
 - 🤝 **When two agents touch the same card:** agents can mark a card as being worked on (`claim_task` / `release_task`). Claims are leases, not locks: they expire after 30 minutes without activity, clear when the agent disconnects or the card is done, and you can release one anytime.
 - ⚠️ **No stale overwrites:** requests remember the values they'd replace; changes made since the agent asked are flagged and start unticked.
 - Side panels now close with a single Esc (the close button's tooltip no longer pops up on open).

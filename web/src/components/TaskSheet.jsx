@@ -6,6 +6,7 @@ import { DuePicker, dueDay, StartPicker } from './Due';
 import { TagEditor } from './Tags';
 import { ClaimBanner } from './Claim';
 import { EstimatePicker } from './Estimate';
+import { NoteField } from './Note';
 import { PRIORITY, PriorityIcon } from './TaskCard';
 import { Button, ColorDot, cx, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Sheet, useNow } from './ui';
 
@@ -340,9 +341,7 @@ export function TaskSheet() {
           <Subtasks task={t} />
 
           <Section title="Note">
-            <div className="note-paper rounded-lg border border-line px-3 py-1.5 shadow-card">
-              <AutoField value={t.note} onSave={(note) => updateTask(t.id, { note })} minRows={3} placeholder="Scratchpad — thoughts, progress, follow-ups…" className="text-[13.5px] !leading-[24px]" />
-            </div>
+            <NoteField value={t.note} onSave={(note) => updateTask(t.id, { note })} />
           </Section>
         </div>
       )}

@@ -39,6 +39,7 @@ server/actions.js   ← proposed changes (assistant + agents in "ask first" mode
 mcp/index.js        ← MCP server for AI agents: reads directly, writes become approval requests by default, claims
 shared/due.js       ← "Due tomorrow" / "Overdue 2d" labels, shared by UI + MCP
 shared/tags.js      ← tag colours and add/remove helpers, shared by UI, chat + MCP
+shared/estimate.js  ← estimate sizes, parsing ("M", "2.5h", "1d") and money formatting
 web/public/
   sw.js             ← service worker: notifications, installable app shell
   manifest.webmanifest, icons/
@@ -50,7 +51,7 @@ web/src/
   themes.js         ← theme list for the picker
   styles.css        ← theme colours (CSS variables) + global styles
   dates.js          ← date presets & quick-add parser (@fri !high)
-  components/       ← Home, Board, Timeline, AgentInbox, Chat, Column, TaskCard, TaskSheet, Tags, Reminders, TopBar, …
+  components/       ← Home, Board, Timeline, AgentInbox, Chat, Note, Estimate, Column, TaskCard, TaskSheet, Tags, …
 test/               ← node:test suite
 ```
 
@@ -61,7 +62,7 @@ test/               ← node:test suite
 1. In `web/src/styles.css`, copy an existing `[data-theme='…']` block and give it a new id. Every colour, font and shadow is a CSS variable.
 2. Add an entry to `web/src/themes.js` with a name, tagline and four swatch colours.
 3. If it's a dark theme, add its id to the `dark` list in `web/src/App.jsx`, and to the `--bar-l: 0.65` block in `styles.css` so the home-page status bars stay readable.
-4. Check that text is readable (aim for WCAG AA contrast), and that due-date chips, priority icons, the note pad and the home page's status bars all look good.
+4. Check that text is readable (aim for WCAG AA contrast), and that due-date chips, priority icons, formatted notes (including a Mermaid diagram) and the home page's status bars all look good.
 5. Include a screenshot in your PR!
 
 ## ✅ Before you open a pull request
