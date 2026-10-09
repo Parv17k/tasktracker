@@ -1,4 +1,5 @@
 // Date helpers for the UI: presets, input conversions and quick-add parsing.
+import { parseEstimate } from '../../shared/estimate.js';
 
 export const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const addDays = (n, from = new Date()) => new Date(from.getFullYear(), from.getMonth(), from.getDate() + n);
@@ -63,12 +64,24 @@ function parseDueToken(tok) {
  *   @today @tomorrow @mon..@sun @nextweek @3d @2w @2026-10-12 @10/12   → deadline
  *   !low !med !high !urgent                                             → priority
  *   #design #q4-launch                                                  → tags (#12 stays: it looks like a task number)
+ *   ~2h ~90m ~M ~XL                                                      → estimate
  */
 export function parseQuickAdd(input) {
   let dueAt = null;
   let priority = null;
   const tags = [];
+  let estimateMinutes = null;
   const title = input
+    .replace(/(^|\s)~(\S+)/g, (whole, sp, tok) => {
+      try {
+        const m = parseEstimate(tok);
+        if (!m) return whole;
+        estimateMinutes = m;
+        return sp;
+      } catch {
+        return whole;
+      }
+    })
     .replace(/(^|\s)#([^\s#,]+)/g, (whole, sp, tok) => {
       if (/^\d+$/.test(tok) || tok.length > 40) return whole;
       if (!tags.some((t) => t.toLowerCase() === tok.toLowerCase())) tags.push(tok);
@@ -88,5 +101,5 @@ export function parseQuickAdd(input) {
     })
     .replace(/\s+/g, ' ')
     .trim();
-  return { title, dueAt, priority, tags };
+  return { title, dueAt, priority, tags, estimateMinutes };
 }

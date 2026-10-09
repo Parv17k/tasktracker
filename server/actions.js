@@ -6,6 +6,7 @@
 import * as store from './db.js';
 import { dueInfo } from '../shared/due.js';
 import { changeTags } from '../shared/tags.js';
+import { formatEstimate, formatMoney, parseEstimate, sizeOf } from '../shared/estimate.js';
 
 export const MAX_ACTIONS = 20;
 
@@ -104,6 +105,22 @@ function checkSpan(startAt, dueAt) {
   if (startAt > due) fail('The start date can’t be after the deadline.');
 }
 
+/** Estimate in minutes (null clears), or undefined when not given. */
+function estimate(v) {
+  if (v === undefined) return undefined;
+  try {
+    return parseEstimate(v);
+  } catch (err) {
+    return fail(err.message);
+  }
+}
+
+const estimateWords = (m) => {
+  if (!m) return 'no estimate';
+  const s = sizeOf(m);
+  return s ? `${s.key} (${formatEstimate(m)})` : `~${formatEstimate(m)}`;
+};
+
 function resolveColumnIn(ref, projectId) {
   try {
     return store.resolveColumn(ref, projectId);
@@ -154,13 +171,14 @@ function plan(a, source = 'chat') {
       const [dueAt, dueLabel] = due(a.due);
       const startAt = start(a.start);
       if (startAt && dueAt) checkSpan(startAt, dueAt);
+      const est = estimate(a.estimate);
       const subtasks = Array.isArray(a.subtasks) ? a.subtasks.map((s) => text(s, 'subtask', { required: true, max: 500 })).slice(0, 30) : [];
       const tags = tagNames(a.tags);
-      const extras = [p && p !== 'none' && `${p} priority`, startAt && `starts ${dayLabel(startAt)}`, dueLabel, subtasks.length && `${subtasks.length} subtask${subtasks.length === 1 ? '' : 's'}`, tags.length && tagWords(tags)].filter(Boolean);
+      const extras = [p && p !== 'none' && `${p} priority`, est && `~${formatEstimate(est)}`, startAt && `starts ${dayLabel(startAt)}`, dueLabel, subtasks.length && `${subtasks.length} subtask${subtasks.length === 1 ? '' : 's'}`, tags.length && tagWords(tags)].filter(Boolean);
       return {
         verb: 'Create',
         summary: `“${title}” in ${project.icon} ${project.name} › ${column.name}${extras.length ? ` · ${extras.join(' · ')}` : ''}`,
-        run: () => store.createTask({ projectId: project.id, columnId: column.id, title, description, note, priority: p, startAt: startAt || undefined, dueAt: dueAt || undefined, subtasks, tags }),
+        run: () => store.createTask({ projectId: project.id, columnId: column.id, title, description, note, priority: p, startAt: startAt || undefined, dueAt: dueAt || undefined, estimateMinutes: est ?? undefined, subtasks, tags }),
       };
     }
 
@@ -189,6 +207,10 @@ function plan(a, source = 'chat') {
         const [dueAt, dueLabel] = due(a.due);
         const same = dueAt ? t.dueAt && store.parseDue(dueAt)[0] === t.dueAt : !t.dueAt;
         if (!same) (patch.dueAt = dueAt), changes.push(dueAt ? dueLabel : 'remove deadline');
+      }
+      if (a.estimate !== undefined) {
+        const v = estimate(a.estimate);
+        if ((v ?? null) !== t.estimateMinutes) (patch.estimateMinutes = v), changes.push(`estimate → ${estimateWords(v)}`);
       }
       if (a.start !== undefined) {
         const s = start(a.start);
@@ -310,6 +332,19 @@ function plan(a, source = 'chat') {
         const p = priority(a.priority);
         if (p !== project.priority) (patch.priority = p), changes.push(`priority → ${p}`);
       }
+      if (a.currency !== undefined) {
+        const c = String(a.currency).trim().toUpperCase();
+        if (!/^[A-Z]{3}$/.test(c)) fail(`“${a.currency}” isn’t a currency code. Use one like USD, EUR or INR.`);
+        if (c !== project.currency) patch.currency = c;
+      }
+      if (a.hourly_rate !== undefined) {
+        const r = a.hourly_rate === null || a.hourly_rate === '' ? null : Number(a.hourly_rate);
+        if (r !== null && (!Number.isFinite(r) || r < 0 || r > 100000)) fail('The hourly rate must be a number between 0 and 100,000.');
+        if ((r || null) !== project.hourlyRate || patch.currency) {
+          patch.hourlyRate = r || null;
+          changes.push(r ? `rate → ${formatMoney(r, patch.currency || project.currency)}/h` : 'remove hourly rate');
+        }
+      } else if (patch.currency) changes.push(`currency → ${patch.currency}`);
       if (a.add_tags !== undefined || a.remove_tags !== undefined || a.tags !== undefined) {
         const base = a.tags !== undefined ? tagNames(a.tags) : null;
         const c = base
@@ -381,6 +416,8 @@ const FIELD_NAMES = {
   priority: 'priority',
   due: 'deadline',
   start: 'start date',
+  estimate: 'estimate',
+  rate: 'hourly rate',
   tags: 'tags',
   column: 'status',
   archived: 'archive state',
@@ -418,6 +455,7 @@ function basisOf(a) {
         if (a.priority !== undefined) b.priority = t.priority;
         if (a.due !== undefined) b.due = t.dueAt;
         if (a.start !== undefined) b.start = t.startAt;
+        if (a.estimate !== undefined) b.estimate = t.estimateMinutes;
         if (a.tags !== undefined || a.add_tags !== undefined || a.remove_tags !== undefined) b.tags = t.tags.join('\u0000');
         return b;
       }
@@ -439,6 +477,7 @@ function basisOf(a) {
         const p = resolveProjectRef(a.project);
         const b = {};
         for (const k of ['name', 'icon', 'description', 'priority']) if (a[k] !== undefined) b[k] = p[k];
+        if (a.hourly_rate !== undefined || a.currency !== undefined) b.rate = `${p.hourlyRate}|${p.currency}`;
         if (a.tags !== undefined || a.add_tags !== undefined || a.remove_tags !== undefined) b.tags = p.tags.join('\u0000');
         return b;
       }

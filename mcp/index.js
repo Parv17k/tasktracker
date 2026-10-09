@@ -9,6 +9,7 @@ import * as store from '../server/db.js';
 import * as actions from '../server/actions.js';
 import { dueInfo, formatDuration } from '../shared/due.js';
 import { changeTags } from '../shared/tags.js';
+import { formatEstimate, formatHours, formatMoney, parseEstimate } from '../shared/estimate.js';
 
 const server = new McpServer(
   { name: 'tasktracker', version: '1.0.0' },
@@ -114,6 +115,7 @@ function taskLine(t) {
   if (due) parts.push(`(${due.label})`);
   if (t.subtasks.length) parts.push(`{${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length} subtasks}`);
   if (t.tags?.length) parts.push(t.tags.map((g) => `#${g}`).join(' '));
+  if (t.estimateMinutes) parts.push(`~${formatEstimate(t.estimateMinutes)}`);
   if (t.timerStartedAt) parts.push('⏱ running');
   if (t.claim) parts.push(`(🤖 ${t.claim.agent} is working on it)`);
   if (t.archived) parts.push('(archived)');
@@ -130,6 +132,7 @@ function taskDetail(t) {
     `priority: ${t.priority}`,
     `tags: ${t.tags?.length ? t.tags.join(', ') : 'none'}`,
     `start: ${t.startAt || 'none'}`,
+    `estimate: ${t.estimateMinutes ? formatEstimate(t.estimateMinutes) : 'none'}`,
     `due: ${due ? `${t.dueAt} — ${due.label}` : 'none'}`,
     `time spent: ${formatDuration(t.timeSpent + running)}${t.timerStartedAt ? ' (timer running)' : ''}`,
     `working on it: ${t.claim ? `${t.claim.agent} since ${t.claim.claimedAt}${t.claim.note ? ` (“${t.claim.note}”)` : ''}` : 'nobody'}`,
@@ -160,6 +163,8 @@ const projectRef = z.union([z.string(), z.number()]).describe('Project name (fuz
 const priority = z.enum(['none', 'low', 'medium', 'high', 'urgent']);
 const due = z.string().describe('Deadline as YYYY-MM-DD (whole day) or an ISO datetime, e.g. 2026-10-05T17:00');
 const start = z.string().describe('Start date as YYYY-MM-DD (shows the task as a span on the timeline); empty string clears it');
+const estimateArg = z.string().describe('Estimate: a size XS (30m), S (1h), M (4h), L (1d = 8h), XL (3d), or an amount like "2h", "90m", "1d 4h". Empty string clears it.');
+const toMinutes = (v) => (v === undefined ? undefined : parseEstimate(v));
 const tagList = z.array(z.string().min(1)).describe('Tag names, e.g. ["design", "q4"]. New tags are created automatically.');
 
 // ---------- tools ----------
@@ -255,10 +260,11 @@ server.registerTool(
       subtasks: z.array(z.string()).optional().describe('Checklist items to create with the task'),
       tags: tagList.optional(),
       start: start.optional(),
+      estimate: estimateArg.optional(),
     },
   },
-  tool(({ title, project, description, note, column, priority, due, start, subtasks, tags }) =>
-    write([{ type: 'create_task', title, project, description, note, column, priority, due, start, subtasks, tags }], () => {
+  tool(({ title, project, description, note, column, priority, due, start, estimate, subtasks, tags }) =>
+    write([{ type: 'create_task', title, project, description, note, column, priority, due, start, estimate, subtasks, tags }], () => {
       const projectId = store.resolveProject(project).id;
       const t = store.createTask({
         projectId,
@@ -268,6 +274,7 @@ server.registerTool(
         priority,
         dueAt: due,
         startAt: start,
+        estimateMinutes: toMinutes(estimate) ?? undefined,
         subtasks,
         tags,
         columnId: column != null ? store.resolveColumn(column, projectId).id : undefined,
@@ -291,14 +298,15 @@ server.registerTool(
       priority: priority.optional(),
       due: z.string().optional().describe('YYYY-MM-DD or ISO datetime; empty string clears it'),
       start: start.optional(),
+      estimate: estimateArg.optional(),
       tags: tagList.optional().describe('Replaces all tags ([] removes them)'),
       add_tags: tagList.optional(),
       remove_tags: z.array(z.string()).optional(),
     },
   },
-  tool(({ id, due, start, tags, add_tags, remove_tags, ...rest }) =>
-    write([{ type: 'update_task', task: id, ...rest, due, start, tags, add_tags, remove_tags }], () => {
-      const patch = { ...rest, ...(due !== undefined ? { dueAt: due } : {}), ...(start !== undefined ? { startAt: start } : {}) };
+  tool(({ id, due, start, estimate, tags, add_tags, remove_tags, ...rest }) =>
+    write([{ type: 'update_task', task: id, ...rest, due, start, estimate, tags, add_tags, remove_tags }], () => {
+      const patch = { ...rest, ...(due !== undefined ? { dueAt: due } : {}), ...(start !== undefined ? { startAt: start } : {}), ...(estimate !== undefined ? { estimateMinutes: toMinutes(estimate) } : {}) };
       if (tags !== undefined || add_tags || remove_tags) patch.tags = changeTags(tags ?? store.getTask(id).tags, { add: add_tags, remove: remove_tags });
       return text(`Updated:\n${taskDetail(store.updateTask(id, patch))}`);
     })
@@ -453,7 +461,8 @@ server.registerTool(
           const flags = [s.overdue && `${s.overdue} overdue`, s.dueWeek && `${s.dueWeek} due this week`].filter(Boolean).join(', ');
           const tags = p.tags?.length ? ` ${p.tags.map((g) => `#${g}`).join(' ')}` : '';
           const prio = p.priority !== 'none' ? ` [${p.priority} priority]` : '';
-          return `${p.icon} ${p.name} (id ${p.id})${i === 0 && !p.archived ? ' [default]' : ''}${p.archived ? ' [archived]' : ''}${prio}${tags} — ${s.total} task(s): ${cols}${flags ? ` — ${flags}` : ''}`;
+          const work = s.estimateLeft ? ` — ~${formatHours(s.estimateLeft)} estimated work left${p.hourlyRate ? ` (~${formatMoney((s.estimateLeft / 60) * p.hourlyRate, p.currency)} at ${formatMoney(p.hourlyRate, p.currency)}/h)` : ''}` : '';
+          return `${p.icon} ${p.name} (id ${p.id})${i === 0 && !p.archived ? ' [default]' : ''}${p.archived ? ' [archived]' : ''}${prio}${tags} — ${s.total} task(s): ${cols}${flags ? ` — ${flags}` : ''}${work}`;
         })
         .join('\n')
     );
@@ -492,15 +501,17 @@ server.registerTool(
       icon: z.string().optional(),
       description: z.string().optional(),
       priority: priority.optional(),
+      hourly_rate: z.number().min(0).nullable().optional().describe('Hourly rate for cost estimates; null removes it'),
+      currency: z.string().length(3).optional().describe('3-letter currency code, e.g. USD, EUR, INR'),
       tags: tagList.optional().describe('Replaces all tags ([] removes them)'),
       add_tags: tagList.optional(),
       remove_tags: z.array(z.string()).optional(),
     },
   },
-  tool(({ project, tags, add_tags, remove_tags, ...rest }) =>
-    write([{ type: 'update_project', project, ...rest, tags, add_tags, remove_tags }], () => {
+  tool(({ project, tags, add_tags, remove_tags, hourly_rate, ...rest }) =>
+    write([{ type: 'update_project', project, ...rest, hourly_rate, tags, add_tags, remove_tags }], () => {
       const current = store.resolveProject(project);
-      const patch = { ...rest };
+      const patch = { ...rest, ...(hourly_rate !== undefined ? { hourlyRate: hourly_rate } : {}) };
       if (tags !== undefined || add_tags || remove_tags) patch.tags = changeTags(tags ?? current.tags, { add: add_tags, remove: remove_tags });
       const p = store.updateProject(current.id, patch);
       return text(`Updated project ${p.icon} ${p.name} (id ${p.id}). Priority: ${p.priority}. Tags: ${p.tags.length ? p.tags.join(', ') : 'none'}.`);

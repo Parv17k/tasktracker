@@ -10,6 +10,7 @@ import { dueInfo } from '../../../shared/due.js';
 import { TaskCard, PRIORITY, PriorityIcon } from './TaskCard';
 import { toneClass } from './Due';
 import { TagChip, useTagColor } from './Tags';
+import { formatHours, formatMoney, costOf } from '../../../shared/estimate.js';
 import { ColorDot, cx, IconButton, Kbd, Menu, MenuContent, MenuItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './ui';
 
 export function Column({ column, taskIds, tasksById, totalCount, filtered, isFirst, isLast, onRemove }) {
@@ -50,6 +51,7 @@ export function Column({ column, taskIds, tasksById, totalCount, filtered, isFir
           </h2>
         )}
         <span className="rounded-full bg-hover px-1.5 text-[11px] font-medium tabular-nums text-muted">{filtered ? `${taskIds.length}/${totalCount}` : totalCount}</span>
+        {!column.isDone && <WorkLeft ids={taskIds} tasksById={tasksById} />}
         {column.isDone && <CheckCircle2 className="size-3.5 text-ok" aria-label="Done column" />}
         <div className="ml-auto flex cursor-default items-center" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <IconButton size="sm" label="Add task" onClick={() => setQuickAdd(column.id)}>
@@ -185,7 +187,7 @@ function QuickAdd({ column, onClose }) {
 
   const submit = () => {
     if (!parsed.title) return;
-    createTask({ title: parsed.title, columnId: column.id, dueAt: parsed.dueAt ?? undefined, priority: parsed.priority ?? undefined, tags: parsed.tags, placement: 'top' }).then(
+    createTask({ title: parsed.title, columnId: column.id, dueAt: parsed.dueAt ?? undefined, priority: parsed.priority ?? undefined, tags: parsed.tags, estimateMinutes: parsed.estimateMinutes ?? undefined, placement: 'top' }).then(
       (t) => t?.tags?.length && useBoard.getState().refreshTags(),
       () => {}
     );
@@ -221,10 +223,13 @@ function QuickAdd({ column, onClose }) {
             <PriorityIcon priority={parsed.priority} /> {PRIORITY[parsed.priority].label}
           </span>
         )}
+        {parsed.estimateMinutes && (
+          <span className="inline-flex h-5 items-center rounded-md bg-hover px-1.5 font-mono font-medium text-muted">~{formatHours(parsed.estimateMinutes)}</span>
+        )}
         {parsed.tags.map((name) => (
           <TagChip key={name} name={name} color={tagColor(name)} />
         ))}
-        {!due && !parsed.priority && !parsed.tags.length && (
+        {!due && !parsed.priority && !parsed.tags.length && !parsed.estimateMinutes && (
           <span className="text-faint">
             Try <span className="font-mono">@fri</span> <span className="font-mono">!high</span> <span className="font-mono">#tag</span>
           </span>
@@ -296,5 +301,20 @@ export function ColumnOverlay({ column, tasks }) {
         {tasks.length > 4 && <div className="px-1 text-[12px] text-faint">+{tasks.length - 4} more</div>}
       </div>
     </section>
+  );
+}
+
+/** "~9h" next to the count: estimated work in the column (shown only when tasks have estimates). */
+function WorkLeft({ ids, tasksById }) {
+  const project = useBoard((s) => s.project);
+  let minutes = 0;
+  for (const id of ids) minutes += tasksById.get(id)?.estimateMinutes || 0;
+  if (!minutes) return null;
+  const cost = project?.hourlyRate ? ` · ~${formatMoney(costOf(minutes, project.hourlyRate), project.currency)}` : '';
+  return (
+    <span title="Estimated work in this column" className="text-[11px] tabular-nums text-faint">
+      ~{formatHours(minutes)}
+      {cost}
+    </span>
   );
 }

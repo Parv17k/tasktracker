@@ -34,6 +34,7 @@ import { AgentInboxButton } from './AgentInbox';
 import { ManageTagsDialog, TagChip, TagEditor, TagList, useTagColor } from './Tags';
 import { PRIORITY, PriorityIcon } from './TaskCard';
 import { HomeTimeline } from './TimelineViews';
+import { costOf, formatHours, formatMoney } from '../../../shared/estimate.js';
 import { Button, cx, Dialog, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger, Tip } from './ui';
 
 const ICONS = ['📋', '✅', '🚀', '💼', '🏠', '🎯', '💡', '📚', '🛠️', '🎨', '💰', '🌱', '✈️', '🏋️', '🧪', '📈', '🛒', '❤️', '🎓', '🧘', '📝', '🔒', '🌍', '🎵'];
@@ -483,6 +484,11 @@ function ProjectCard({ project: p, isFirst, isLast, onEdit, onDelete, canArchive
           </span>
         )}
         {s.overdue === 0 && s.dueWeek === 0 && <span className="text-faint">No deadlines this week</span>}
+        {s.estimateLeft > 0 && (
+          <span title={`Estimated work on ${s.estimatedOpen} open task${s.estimatedOpen === 1 ? '' : 's'}`} className="inline-flex h-6 items-center rounded-md bg-hover px-2 tabular-nums text-muted">
+            ~{formatHours(s.estimateLeft)} left{p.hourlyRate ? ` · ~${formatMoney(costOf(s.estimateLeft, p.hourlyRate), p.currency)}` : ''}
+          </span>
+        )}
         <span className="ml-auto text-faint">{ago(s.lastActivity)}</span>
       </footer>
     </article>
@@ -552,6 +558,13 @@ function NewProjectCard({ onClick }) {
 }
 
 /** Create (no `project`) or edit (with `project`) a project. */
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'JPY', 'CHF', 'SGD', 'AED'];
+// the currency of the browser's locale when it's easy to tell, otherwise USD
+const DEFAULT_CURRENCY = (() => {
+  const region = (navigator.language || '').split('-')[1];
+  return { US: 'USD', GB: 'GBP', IN: 'INR', CA: 'CAD', AU: 'AUD', JP: 'JPY', CH: 'CHF', SG: 'SGD', AE: 'AED', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR', IE: 'EUR' }[region] || 'USD';
+})();
+
 function ProjectDialog({ open, project, onClose, projects = [] }) {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState(ICONS[2]);
@@ -560,6 +573,8 @@ function ProjectDialog({ open, project, onClose, projects = [] }) {
   const [copyFrom, setCopyFrom] = useState('');
   const [tags, setTags] = useState([]);
   const [priority, setPriority] = useState('none');
+  const [rate, setRate] = useState('');
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const editing = !!project;
 
   useEffect(() => {
@@ -571,17 +586,19 @@ function ProjectDialog({ open, project, onClose, projects = [] }) {
     setCopyFrom('');
     setTags(project?.tags ?? []);
     setPriority(project?.priority ?? 'none');
+    setRate(project?.hourlyRate != null ? String(project.hourlyRate) : '');
+    setCurrency(project?.currency ?? DEFAULT_CURRENCY);
   }, [open, project]);
 
   const submit = async () => {
     if (!name.trim()) return;
     const { createProject, updateProject, loadHome } = useBoard.getState();
     if (editing) {
-      await updateProject(project.id, { name: name.trim(), icon, color, description: description.trim(), priority, tags });
+      await updateProject(project.id, { name: name.trim(), icon, color, description: description.trim(), priority, tags, hourlyRate: rate === '' ? null : Number(rate), currency });
       loadHome();
       onClose();
     } else {
-      const p = await createProject({ name: name.trim(), icon, color, description: description.trim(), priority, tags, copyColumnsFrom: copyFrom || undefined });
+      const p = await createProject({ name: name.trim(), icon, color, description: description.trim(), priority, tags, hourlyRate: rate === '' ? null : Number(rate), currency, copyColumnsFrom: copyFrom || undefined });
       onClose();
       navigate(projectPath(p.id));
     }
@@ -673,6 +690,30 @@ function ProjectDialog({ open, project, onClose, projects = [] }) {
 
         <Field label="Tags">
           <TagEditor value={tags} onChange={setTags} placeholder="e.g. work, personal, Q4" />
+        </Field>
+
+        <Field label="Hourly rate (optional)">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              step="any"
+              inputMode="decimal"
+              value={rate}
+              placeholder="e.g. 80"
+              aria-label="Hourly rate"
+              onChange={(e) => setRate(e.target.value)}
+              className="h-9 w-32 rounded-xl border border-line bg-bg/50 px-3 text-[13.5px] outline-none focus:border-accent"
+            />
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)} aria-label="Currency" className="h-9 rounded-xl border border-line bg-bg/50 px-2 text-[13px] outline-none focus:border-accent">
+              {[...new Set([currency, ...CURRENCIES])].map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <span className="text-[12px] text-faint">per hour · shows cost from estimates and tracked time</span>
+          </div>
         </Field>
 
         {!editing && projects.length > 0 && (

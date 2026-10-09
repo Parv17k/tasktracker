@@ -5,6 +5,7 @@ import { useBoard } from '../store';
 import { DuePicker, dueDay, StartPicker } from './Due';
 import { TagEditor } from './Tags';
 import { ClaimBanner } from './Claim';
+import { EstimatePicker } from './Estimate';
 import { PRIORITY, PriorityIcon } from './TaskCard';
 import { Button, ColorDot, cx, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Sheet, useNow } from './ui';
 
@@ -226,6 +227,7 @@ const fmt = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle:
 export function TaskSheet() {
   const selectedId = useBoard((s) => s.selectedId);
   const task = useBoard((s) => s.tasks.find((t) => t.id === s.selectedId));
+  const project = useBoard((s) => s.project);
   const { select, updateTask, archiveTask, deleteTask } = useBoard.getState();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -317,6 +319,9 @@ export function TaskSheet() {
             </Row>
             <Row label="Start">
               <StartPicker startAt={t.startAt} dueAt={t.dueAt} onChange={(startAt) => updateTask(t.id, { startAt })} />
+            </Row>
+            <Row label="Estimate">
+              <EstimatePicker task={t} project={project} onChange={(estimateMinutes) => updateTask(t.id, { estimateMinutes })} />
             </Row>
             <Row label="Time spent">
               <TimeTracker task={t} />

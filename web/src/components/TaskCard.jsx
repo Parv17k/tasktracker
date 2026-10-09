@@ -6,6 +6,7 @@ import { useBoard } from '../store';
 import { DueChip } from './Due';
 import { TagList } from './Tags';
 import { ClaimChip } from './Claim';
+import { EstimateChip } from './Estimate';
 import { cx, Tip } from './ui';
 
 export const PRIORITY = {
@@ -95,10 +96,11 @@ function CardBody({ task, isDone, overlay }) {
         </div>
       )}
 
-      {(task.dueAt || total > 0 || task.priority !== 'none' || task.note || task.description || task.timerStartedAt) && (
+      {(task.dueAt || total > 0 || task.priority !== 'none' || task.note || task.description || task.timerStartedAt || task.estimateMinutes) && (
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 pl-6 text-[11px] text-muted">
           <PriorityIcon priority={task.priority} />
           <DueChip dueAt={task.dueAt} hasTime={task.dueHasTime} done={isDone} />
+          <EstimateChip task={task} done={isDone} />
           {total > 0 && (
             <span className={cx('inline-flex items-center gap-1 tabular-nums', done === total && 'text-ok')}>
               <ListChecks className="size-3.5" />

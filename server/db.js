@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { tagColor } from '../shared/tags.js';
+import { MAX_ESTIMATE } from '../shared/estimate.js';
 
 // Lives outside the project so the web app and MCP server always share one DB,
 // and so cloud-synced folders (iCloud/Dropbox) never touch a live SQLite file.
@@ -232,6 +233,17 @@ function migrate() {
       db.exec('PRAGMA user_version = 7');
     });
   }
+  if (user_version < 8) {
+    // v8: optional estimates on tasks, and an optional hourly rate per project for cost
+    tx(() => {
+      db.exec(`
+        ALTER TABLE tasks ADD COLUMN estimate_minutes INTEGER;
+        ALTER TABLE projects ADD COLUMN hourly_rate REAL;
+        ALTER TABLE projects ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD';
+      `);
+      db.exec('PRAGMA user_version = 8');
+    });
+  }
 }
 
 const DEFAULT_COLUMNS = [
@@ -277,6 +289,8 @@ function mapProject(r) {
       color: r.color,
       description: r.description,
       priority: r.priority,
+      hourlyRate: r.hourly_rate ?? null,
+      currency: r.currency || 'USD',
       position: r.position,
       archived: !!r.archived,
       createdAt: r.created_at,
@@ -299,6 +313,7 @@ function mapTask(r, subtasks = [], tags = [], claim = null) {
       note: r.note,
       priority: r.priority,
       startAt: r.start_at ?? null,
+      estimateMinutes: r.estimate_minutes ?? null,
       dueAt: r.due_at,
       dueHasTime: !!r.due_has_time,
       timeSpent: r.time_spent,
@@ -354,6 +369,28 @@ export function parseDue(v) {
   const t = Date.parse(s);
   if (Number.isNaN(t)) throw new AppError(400, `Invalid due date: ${s} (use YYYY-MM-DD or an ISO datetime)`);
   return [new Date(t).toISOString(), 1];
+}
+
+/** Estimates are whole minutes, up to 60 working days. null or 0 clears it. */
+function cleanEstimate(v) {
+  if (v == null || v === '' || v === 0) return null;
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n) || n < 0) throw new AppError(400, 'An estimate must be a number of minutes');
+  if (n > MAX_ESTIMATE) throw new AppError(400, 'That estimate is too large (the limit is 60 working days)');
+  return n || null;
+}
+
+function cleanRate(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 100000) throw new AppError(400, 'The hourly rate must be a number between 0 and 100,000');
+  return n || null;
+}
+
+function cleanCurrency(v) {
+  const c = String(v ?? '').trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(c)) throw new AppError(400, 'Currency must be a 3-letter code like USD, EUR or INR');
+  return c;
 }
 
 /** Start dates are whole days: 'YYYY-MM-DD' (a datetime is cut to its date). '' or null clears it. */
@@ -575,7 +612,7 @@ function defaultColumnId(projectId = defaultProjectId()) {
   return c.id;
 }
 
-export function createTask({ title, description, note, projectId, columnId, priority = 'none', startAt, dueAt, subtasks = [], tags = [], placement = 'bottom' } = {}) {
+export function createTask({ title, description, note, projectId, columnId, priority = 'none', startAt, dueAt, estimateMinutes, subtasks = [], tags = [], placement = 'bottom' } = {}) {
   return tx(() => {
     const colId = columnId != null ? getColumn(columnId).id : defaultColumnId(projectId != null ? getProject(projectId).id : defaultProjectId());
     if (!PRIORITIES.includes(priority)) throw new AppError(400, `priority must be one of ${PRIORITIES.join(', ')}`);
@@ -588,7 +625,7 @@ export function createTask({ title, description, note, projectId, columnId, prio
         : q('SELECT COALESCE(MAX(position), 0) + 1024 AS p FROM tasks WHERE column_id = ? AND archived = 0').get(colId).p;
     const isDone = getColumn(colId).isDone;
     const id = Number(
-      q('INSERT INTO tasks (column_id, title, description, note, priority, start_at, due_at, due_has_time, position, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+      q('INSERT INTO tasks (column_id, title, description, note, priority, start_at, due_at, due_has_time, estimate_minutes, position, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
         colId,
         cleanText(title, 'title', { max: 500, required: true }),
         cleanText(description, 'description'),
@@ -597,6 +634,7 @@ export function createTask({ title, description, note, projectId, columnId, prio
         start,
         due,
         dueHasTime,
+        cleanEstimate(estimateMinutes),
         edge,
         isDone ? now() : null
       ).lastInsertRowid
@@ -624,6 +662,7 @@ export function updateTask(id, patch = {}) {
       sets.push('due_at = ?', 'due_has_time = ?'), vals.push(due, hasTime);
     }
     if (patch.startAt !== undefined) sets.push('start_at = ?'), vals.push(parseStart(patch.startAt));
+    if (patch.estimateMinutes !== undefined) sets.push('estimate_minutes = ?'), vals.push(cleanEstimate(patch.estimateMinutes));
     if (patch.startAt !== undefined || patch.dueAt !== undefined) {
       checkSpan(patch.startAt !== undefined ? parseStart(patch.startAt) : task.startAt, patch.dueAt !== undefined ? parseDue(patch.dueAt)[0] : task.dueAt);
     }
@@ -778,7 +817,7 @@ export function listProjects({ includeArchived = true } = {}) {
   for (const p of projects) p.tags = projectTags.get(p.id) || [];
   const columns = listColumns();
   const colById = new Map(columns.map((c) => [c.id, c]));
-  const tasks = q('SELECT column_id, due_at, due_has_time, completed_at, updated_at FROM tasks WHERE archived = 0').all();
+  const tasks = q('SELECT column_id, due_at, due_has_time, completed_at, updated_at, estimate_minutes, time_spent FROM tasks WHERE archived = 0').all();
   const today = localDate();
   const nowIso = now();
   const weekEnd = localDate(new Date(Date.now() + 7 * 86400000));
@@ -794,6 +833,9 @@ export function listProjects({ includeArchived = true } = {}) {
         dueToday: 0,
         dueWeek: 0,
         completedThisWeek: 0,
+        estimateLeft: 0,
+        estimatedOpen: 0,
+        tracked: 0,
         lastActivity: p.updatedAt,
         byColumn: new Map(columns.filter((c) => c.projectId === p.id).map((c) => [c.id, 0])),
       },
@@ -804,8 +846,10 @@ export function listProjects({ includeArchived = true } = {}) {
     const st = col && stats.get(col.projectId);
     if (!st) continue;
     st.total++;
+    st.tracked += t.time_spent || 0;
     st.byColumn.set(col.id, (st.byColumn.get(col.id) || 0) + 1);
     if (t.updated_at > st.lastActivity) st.lastActivity = t.updated_at;
+    if (!col.isDone && t.estimate_minutes) (st.estimateLeft += t.estimate_minutes), st.estimatedOpen++;
     if (col.isDone) {
       st.done++;
       if (t.completed_at && t.completed_at >= weekAgo) st.completedThisWeek++;
@@ -828,6 +872,9 @@ export function listProjects({ includeArchived = true } = {}) {
         dueToday: st.dueToday,
         dueWeek: st.dueWeek,
         completedThisWeek: st.completedThisWeek,
+        estimateLeft: st.estimateLeft,
+        estimatedOpen: st.estimatedOpen,
+        tracked: st.tracked,
         lastActivity: st.lastActivity,
         columns: columns
           .filter((c) => c.projectId === p.id)
@@ -853,17 +900,19 @@ export function dueSoon({ days = 7, limit = 12 } = {}) {
   }));
 }
 
-export function createProject({ name, icon = '📋', color = 'blue', description = '', priority = 'none', tags = [], copyColumnsFrom } = {}) {
+export function createProject({ name, icon = '📋', color = 'blue', description = '', priority = 'none', hourlyRate, currency = 'USD', tags = [], copyColumnsFrom } = {}) {
   return tx(() => {
     const { m } = q('SELECT COALESCE(MAX(position), 0) AS m FROM projects').get();
     if (!PRIORITIES.includes(priority)) throw new AppError(400, `priority must be one of ${PRIORITIES.join(', ')}`);
     const id = Number(
-      q('INSERT INTO projects (name, icon, color, description, priority, position) VALUES (?, ?, ?, ?, ?, ?)').run(
+      q('INSERT INTO projects (name, icon, color, description, priority, hourly_rate, currency, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
         cleanText(name, 'name', { max: 80, required: true }),
         cleanText(icon, 'icon', { max: 16, required: true }),
         COLORS.includes(color) ? color : 'blue',
         cleanText(description, 'description', { max: 280 }),
         priority,
+        cleanRate(hourlyRate),
+        cleanCurrency(currency),
         m + 1024
       ).lastInsertRowid
     );
@@ -893,6 +942,8 @@ export function updateProject(id, patch = {}) {
       if (!PRIORITIES.includes(patch.priority)) throw new AppError(400, `priority must be one of ${PRIORITIES.join(', ')}`);
       sets.push('priority = ?'), vals.push(patch.priority);
     }
+    if (patch.hourlyRate !== undefined) sets.push('hourly_rate = ?'), vals.push(cleanRate(patch.hourlyRate));
+    if (patch.currency !== undefined) sets.push('currency = ?'), vals.push(cleanCurrency(patch.currency));
     if (patch.archived !== undefined) {
       if (patch.archived && !p.archived) {
         const { n } = q('SELECT COUNT(*) AS n FROM projects WHERE archived = 0').get();
