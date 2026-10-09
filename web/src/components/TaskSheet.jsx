@@ -4,6 +4,7 @@ import { formatDuration } from '../../../shared/due.js';
 import { useBoard } from '../store';
 import { DuePicker, dueDay, StartPicker } from './Due';
 import { TagEditor } from './Tags';
+import { ClaimBanner } from './Claim';
 import { PRIORITY, PriorityIcon } from './TaskCard';
 import { Button, ColorDot, cx, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Sheet, useNow } from './ui';
 
@@ -290,6 +291,7 @@ export function TaskSheet() {
     >
       {t && (
         <div key={t.id} className="pb-10">
+          <ClaimBanner task={t} />
           <div className="px-6 pb-2 pt-5">
             <AutoField singleLine value={t.title} onSave={(title) => updateTask(t.id, { title })} className="font-display text-[24px] leading-tight text-fg" placeholder="Task title" />
           </div>

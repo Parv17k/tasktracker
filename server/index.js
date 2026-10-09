@@ -118,7 +118,13 @@ app.post('/api/chat/actions/apply', async (req) => actions.apply(req.body?.actio
 // requests from agents (MCP) waiting for the user, and whether agents must ask first
 app.get('/api/settings/agents', async () => store.getAgentSettings());
 app.patch('/api/settings/agents', async (req) => store.updateAgentSettings(req.body));
-app.get('/api/proposals', async (req) => store.listProposals({ status: req.query.status === 'recent' ? 'recent' : 'pending', limit: Math.min(Number(req.query.limit) || 50, 200) }));
+app.get('/api/proposals', async (req) => {
+  const status = req.query.status === 'recent' ? 'recent' : 'pending';
+  const list = store.listProposals({ status, limit: Math.min(Number(req.query.limit) || 50, 200) });
+  return status === 'pending' ? list.map(actions.annotate) : list;
+});
+// the user can always clear an agent's "working on it" marker
+app.delete('/api/tasks/:id/claim', async (req) => store.releaseClaim(id(req)));
 app.post('/api/proposals/:id/apply', async (req) => actions.approve(id(req), req.body?.selected));
 app.post('/api/proposals/:id/dismiss', async (req) => actions.dismiss(id(req)));
 app.post('/api/chat', async (req, reply) => {

@@ -1,7 +1,7 @@
 // Requests from AI agents (over MCP) waiting for the user. In "ask me first" mode an agent's
 // changes land here instead of on the board; nothing happens until the user taps Apply.
 import { useEffect, useState } from 'react';
-import { AlertCircle, Bot, Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Bot, Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api';
 import { setProposalListener, useBoard } from '../store';
@@ -16,6 +16,7 @@ const ago = (iso) => {
 };
 
 const count = (n) => (n === 1 ? '1 change' : `${n} changes`);
+const list = (words) => (words.length < 2 ? words[0] : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`);
 
 export function AgentInboxButton() {
   const pending = useBoard((s) => s.proposals.length);
@@ -141,7 +142,14 @@ function AgentInbox({ open, onOpenChange }) {
 
 /** One agent request: each change in plain words, with a checkbox. Nothing happens until Apply. */
 function RequestCard({ proposal: p }) {
-  const [selected, setSelected] = useState(() => p.items.map((i) => i.ok));
+  // changes that would overwrite something edited since the agent asked start unticked
+  const [selected, setSelected] = useState(() => p.items.map((i) => i.ok && !i.changed));
+  // if something is edited while the request sits here, untick the change that would overwrite it
+  const changedKey = p.items.map((i) => (i.changed ? 1 : 0)).join('');
+  useEffect(() => {
+    setSelected((sel) => sel.map((v, k) => (p.items[k].changed ? false : v)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changedKey]);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   const possible = p.items.filter((i) => i.ok).length;
@@ -183,6 +191,16 @@ function RequestCard({ proposal: p }) {
             )}
             <span className={cx('min-w-0', !it.ok && 'text-faint')}>
               <span className={cx('font-medium', it.ok ? 'text-fg' : 'text-faint')}>{it.verb}</span> <span className={it.ok ? 'text-muted' : ''}>{it.summary}</span>
+              {it.ok && it.changed && (
+                <span className="mt-1 flex items-center gap-1 text-[11.5px] font-medium text-warn">
+                  <AlertTriangle className="size-3.5 shrink-0" /> The {list(it.changed)} changed since {p.agent} asked. Tick to overwrite it anyway.
+                </span>
+              )}
+              {it.ok && it.claimedBy && (
+                <span className="mt-1 flex items-center gap-1 text-[11.5px] text-muted">
+                  <Bot className="size-3.5 shrink-0 text-accent" /> {it.claimedBy.agent} is working on this card{it.claimedBy.note ? `: “${it.claimedBy.note}”` : ''}.
+                </span>
+              )}
             </span>
           </li>
         ))}

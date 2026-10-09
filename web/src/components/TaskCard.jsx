@@ -5,6 +5,7 @@ import { Archive, Check, GripVertical, ListChecks, StickyNote, Timer, AlignLeft 
 import { useBoard } from '../store';
 import { DueChip } from './Due';
 import { TagList } from './Tags';
+import { ClaimChip } from './Claim';
 import { cx, Tip } from './ui';
 
 export const PRIORITY = {
@@ -81,6 +82,12 @@ function CardBody({ task, isDone, overlay }) {
           <Archive className="size-3.5" />
         </button>
       </div>
+
+      {task.claim && (
+        <div className="mt-1.5 pl-6">
+          <ClaimChip claim={task.claim} />
+        </div>
+      )}
 
       {task.tags?.length > 0 && (
         <div className="mt-1.5 pl-6">

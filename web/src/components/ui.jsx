@@ -139,6 +139,13 @@ export function Sheet({ open, onOpenChange, title, children, width = 560, header
         <D.Overlay className="anim-overlay fixed inset-0 z-40 bg-black/20" />
         <D.Content
           aria-describedby={undefined}
+          // focus the panel itself rather than its close button, so the "Close (Esc)" tooltip
+          // doesn't pop up and the first Esc closes the panel (inputs that focus themselves keep focus)
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            e.currentTarget.focus();
+          }}
+          tabIndex={-1}
           style={{ width: `min(100vw, ${width}px)` }}
           className="anim-sheet fixed inset-y-0 right-0 z-50 flex flex-col border-l border-line bg-card shadow-pop outline-none"
         >

@@ -44,6 +44,7 @@ export const api = {
   approveProposal: (id, selected) => request('POST', `/api/proposals/${id}/apply`, { selected }),
   dismissProposal: (id) => request('POST', `/api/proposals/${id}/dismiss`),
   agentSettings: () => request('GET', '/api/settings/agents'),
+  releaseClaim: (taskId) => request('DELETE', `/api/tasks/${taskId}/claim`),
   updateAgentSettings: (patch) => request('PATCH', '/api/settings/agents', patch),
   updateTag: (id, patch) => request('PATCH', `/api/tags/${id}`, patch),
   deleteTag: (id) => request('DELETE', `/api/tags/${id}`),

@@ -374,11 +374,109 @@ export function apply(actions, { source = 'chat' } = {}) {
 
 // ---------- agent requests ("ask me first") ----------
 
+const FIELD_NAMES = {
+  title: 'title',
+  description: 'description',
+  note: 'note',
+  priority: 'priority',
+  due: 'deadline',
+  start: 'start date',
+  tags: 'tags',
+  column: 'status',
+  archived: 'archive state',
+  subtask: 'subtask',
+  name: 'name',
+  icon: 'icon',
+};
+
+/** The task an action works on, if any (for claims and conflict checks). */
+function targetTaskId(a) {
+  if (a?.task != null) return Number(String(a.task).replace(/^#/, '')) || null;
+  if (a?.subtask_id != null) {
+    try {
+      return subtaskRef(a.subtask_id).task.id;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * The current values an action would overwrite, so a review can tell whether they changed
+ * since the agent asked. Append-only actions (notes, new subtasks, new items) have none.
+ */
+function basisOf(a) {
+  try {
+    switch (a?.type) {
+      case 'update_task': {
+        const t = taskRef(a.task);
+        const b = {};
+        if (a.title !== undefined) b.title = t.title;
+        if (a.description !== undefined) b.description = t.description;
+        if (a.note !== undefined) b.note = t.note;
+        if (a.priority !== undefined) b.priority = t.priority;
+        if (a.due !== undefined) b.due = t.dueAt;
+        if (a.start !== undefined) b.start = t.startAt;
+        if (a.tags !== undefined || a.add_tags !== undefined || a.remove_tags !== undefined) b.tags = t.tags.join('\u0000');
+        return b;
+      }
+      case 'move_task':
+      case 'complete_task':
+        return { column: taskRef(a.task).columnId };
+      case 'archive_task':
+      case 'restore_task':
+        return { archived: taskRef(a.task).archived };
+      case 'check_subtask':
+      case 'update_subtask':
+      case 'delete_subtask': {
+        const t = a.subtask_id != null ? subtaskRef(a.subtask_id).sub : null;
+        const sub = t || taskRef(a.task).subtasks.find((s) => norm(s.title).includes(norm(a.subtask || '')));
+        return sub ? { subtask: `${sub.title}\u0000${sub.done}` } : null;
+      }
+      case 'update_project':
+      case 'tag_project': {
+        const p = resolveProjectRef(a.project);
+        const b = {};
+        for (const k of ['name', 'icon', 'description', 'priority']) if (a[k] !== undefined) b[k] = p[k];
+        if (a.tags !== undefined || a.add_tags !== undefined || a.remove_tags !== undefined) b.tags = p.tags.join('\u0000');
+        return b;
+      }
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 /** Queue an agent's changes for approval. Throws if none of them could be applied. */
-export function propose({ agent, actions }) {
+export function propose({ agent, actions, session = null }) {
   const items = preview(actions, { source: 'agent' });
   if (!items.some((i) => i.ok)) fail(items.map((i) => i.summary).join(' '));
-  return store.createProposal({ agent, actions, items });
+  return store.createProposal({ agent, actions, items, session, basis: actions.map(basisOf) });
+}
+
+/**
+ * Add review hints to pending requests: which changes would overwrite something edited
+ * since the agent asked (`changed`), and which cards another agent is working on (`claimedBy`).
+ */
+export function annotate(proposal) {
+  const items = proposal.items.map((item, i) => {
+    const a = proposal.actions[i];
+    const out = { ...item };
+    const then = proposal.basis?.[i];
+    if (item.ok && then) {
+      const current = basisOf(a);
+      const changed = Object.keys(then).filter((k) => !current || current[k] !== then[k]);
+      if (changed.length) out.changed = changed.map((k) => FIELD_NAMES[k] || k);
+    }
+    const taskId = targetTaskId(a);
+    const claim = taskId && store.getClaim(taskId);
+    if (claim && claim.session !== proposal.session) out.claimedBy = { agent: claim.agent, since: claim.claimedAt, note: claim.note };
+    return out;
+  });
+  return { ...proposal, items };
 }
 
 /** Apply the chosen changes of a pending request (all by default). */

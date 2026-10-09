@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // MCP server (stdio) for the task tracker. Reads and writes the same SQLite
 // database as the web app; open browser tabs update live via SSE.
+import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -15,7 +16,8 @@ const server = new McpServer(
     instructions:
       "Task Tracker is the user's local task board. Read freely. By default the user approves changes: write tools then return a request id instead of changing the board, " +
       'and the change appears once the user taps Apply in the app. Batch related changes into as few calls as you can, tell the user what you asked for, ' +
-      'and use get_request to see whether it was applied (and the ids of anything created).',
+      'and use get_request to see whether it was applied (and the ids of anything created). ' +
+      'Before working on a task for a while, call claim_task so the user and other agents see it is in progress; it expires on its own and is released when the task is done.',
   }
 );
 
@@ -35,9 +37,38 @@ function agentName() {
 
 const asking = () => store.getAgentSettings().approval === 'ask';
 
+// one id per running MCP server (= one agent session); its claims are released when it exits
+const SESSION = randomUUID();
+let released = false;
+const releaseAll = () => {
+  if (released) return;
+  released = true;
+  try {
+    store.releaseSession(SESSION);
+  } catch {}
+};
+process.on('exit', releaseAll);
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => process.exit(0));
+process.stdin.on('close', () => process.exit(0));
+
+const taskIdsIn = (list) => [...new Set(list.map((a) => Number(a.task)).filter((n) => Number.isInteger(n) && n > 0))];
+
+/** Keep this agent's claims alive while it works, and note cards another agent is working on. */
+function touch(list) {
+  const notes = [];
+  for (const id of taskIdsIn(list)) {
+    if (store.refreshClaim(id, SESSION)) continue;
+    const c = store.getClaim(id);
+    if (c && c.session !== SESSION) notes.push(`Heads-up: ${c.agent} is working on #${id}${c.note ? ` (“${c.note}”)` : ''}.`);
+  }
+  return notes;
+}
+
+const withNotes = (result, notes) => (notes.length ? { ...result, content: [...result.content, { type: 'text', text: notes.join('\n') }] } : result);
+
 /** Queue `list` (action objects) for approval and describe what's waiting. */
 function request(list) {
-  const p = actions.propose({ agent: agentName(), actions: list });
+  const p = actions.propose({ agent: agentName(), actions: list, session: SESSION });
   const lines = p.items.map((i) => `- ${i.ok ? '' : '(can’t do) '}${i.verb} ${i.summary}`);
   return text(
     `Waiting for the user's approval in Task Tracker (request ${p.id}):\n${lines.join('\n')}\n\nNothing has changed yet. Call get_request with id ${p.id} later to see whether it was applied.`
@@ -45,7 +76,10 @@ function request(list) {
 }
 
 /** Run `direct` now, or ask first with the equivalent `list` of actions. */
-const write = (list, direct) => (asking() ? request(list) : direct());
+const write = (list, direct) => {
+  const notes = touch(list);
+  return withNotes(asking() ? request(list) : direct(), notes);
+};
 
 // ---------- formatting ----------
 
@@ -81,6 +115,7 @@ function taskLine(t) {
   if (t.subtasks.length) parts.push(`{${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length} subtasks}`);
   if (t.tags?.length) parts.push(t.tags.map((g) => `#${g}`).join(' '));
   if (t.timerStartedAt) parts.push('⏱ running');
+  if (t.claim) parts.push(`(🤖 ${t.claim.agent} is working on it)`);
   if (t.archived) parts.push('(archived)');
   return parts.join(' ');
 }
@@ -97,6 +132,7 @@ function taskDetail(t) {
     `start: ${t.startAt || 'none'}`,
     `due: ${due ? `${t.dueAt} — ${due.label}` : 'none'}`,
     `time spent: ${formatDuration(t.timeSpent + running)}${t.timerStartedAt ? ' (timer running)' : ''}`,
+    `working on it: ${t.claim ? `${t.claim.agent} since ${t.claim.claimedAt}${t.claim.note ? ` (“${t.claim.note}”)` : ''}` : 'nobody'}`,
   ];
   if (t.description) lines.push('', 'description:', t.description);
   if (t.note) lines.push('', 'note:', t.note);
@@ -390,6 +426,7 @@ server.registerTool(
     inputSchema: { id: taskId, action: z.enum(['start', 'stop']) },
   },
   tool(({ id, action }) => {
+    touch([{ task: id }]);
     const t = action === 'start' ? store.startTimer(id) : store.stopTimer(id);
     return text(`Timer ${action === 'start' ? 'running' : 'stopped'} on #${t.id}. Total so far: ${formatDuration(t.timeSpent)}.`);
   })
@@ -520,6 +557,32 @@ server.registerTool(
         .join('\n')
     )
   )
+);
+
+server.registerTool(
+  'claim_task',
+  {
+    title: 'Mark a task as being worked on',
+    description:
+      'Show the user and other agents that you are working on a task. It never blocks anyone and needs no approval. ' +
+      `It lasts ${store.CLAIM_MINUTES} minutes and renews whenever you change that task; it is released when the task is done or archived, when you call release_task, or when you disconnect.`,
+    inputSchema: { id: taskId, note: z.string().max(200).optional().describe('What you are doing, e.g. "writing the API docs"') },
+  },
+  tool(({ id, note }) => {
+    const r = store.claimTask(id, { agent: agentName(), session: SESSION, note });
+    if (r.heldBy) return text(`${r.heldBy.agent} is already working on #${id}${r.heldBy.note ? ` (“${r.heldBy.note}”)` : ''}. Consider another task, or check with the user.`);
+    return text(`You're marked as working on #${id} until ${new Date(r.claim.expiresAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} (renews as you work).`);
+  })
+);
+
+server.registerTool(
+  'release_task',
+  {
+    title: 'Stop working on a task',
+    description: 'Remove your "working on it" marker from a task, e.g. when you stop without finishing.',
+    inputSchema: { id: taskId },
+  },
+  tool(({ id }) => text(store.releaseClaim(id, { session: SESSION }).released ? `Released #${id}.` : `You weren't marked as working on #${id}.`))
 );
 
 await server.connect(new StdioServerTransport());

@@ -36,7 +36,7 @@ server/index.js     ← REST API, live updates (SSE), serves the UI
 server/reminders.js ← deadline reminder engine + Web Push delivery
 server/chat.js      ← AI chat: board snapshot, streaming proxy, voice (speech-to-text / text-to-speech)
 server/actions.js   ← proposed changes (assistant + agents in "ask first" mode): preview, approve, apply in one transaction
-mcp/index.js        ← MCP server for AI agents: reads directly, writes become approval requests by default
+mcp/index.js        ← MCP server for AI agents: reads directly, writes become approval requests by default, claims
 shared/due.js       ← "Due tomorrow" / "Overdue 2d" labels, shared by UI + MCP
 shared/tags.js      ← tag colours and add/remove helpers, shared by UI, chat + MCP
 web/public/

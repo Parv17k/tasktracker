@@ -213,6 +213,25 @@ function migrate() {
       db.exec('PRAGMA user_version = 6');
     });
   }
+  if (user_version < 7) {
+    // v7: agents' "working on it" claims (expiring leases), and what each request was based on
+    tx(() => {
+      db.exec(`
+        CREATE TABLE claims (
+          task_id    INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+          agent      TEXT    NOT NULL,
+          session    TEXT    NOT NULL,
+          note       TEXT    NOT NULL DEFAULT '',
+          claimed_at TEXT    NOT NULL,
+          expires_at TEXT    NOT NULL
+        );
+        CREATE INDEX claims_session ON claims(session);
+        ALTER TABLE proposals ADD COLUMN session TEXT;
+        ALTER TABLE proposals ADD COLUMN basis TEXT;
+      `);
+      db.exec('PRAGMA user_version = 7');
+    });
+  }
 }
 
 const DEFAULT_COLUMNS = [
@@ -270,7 +289,7 @@ function mapSubtask(r) {
   return { id: r.id, taskId: r.task_id, title: r.title, done: !!r.done, position: r.position };
 }
 
-function mapTask(r, subtasks = [], tags = []) {
+function mapTask(r, subtasks = [], tags = [], claim = null) {
   return (
     r && {
       id: r.id,
@@ -292,6 +311,7 @@ function mapTask(r, subtasks = [], tags = []) {
       updatedAt: r.updated_at,
       subtasks,
       tags,
+      claim,
     }
   );
 }
@@ -306,7 +326,8 @@ function withSubtasks(rows) {
     byTask.get(s.task_id).push(mapSubtask(s));
   }
   const tags = tagsFor('task_tags', 'task_id', ids);
-  return rows.map((r) => mapTask(r, byTask.get(r.id) || [], tags.get(r.id) || []));
+  const claims = claimsFor(ids);
+  return rows.map((r) => mapTask(r, byTask.get(r.id) || [], tags.get(r.id) || [], claims.get(r.id) || null));
 }
 
 // ---------- validation helpers ----------
@@ -609,6 +630,7 @@ export function updateTask(id, patch = {}) {
     if (patch.timeSpent !== undefined) sets.push('time_spent = ?'), vals.push(Math.max(0, Math.round(Number(patch.timeSpent) || 0)));
     if (patch.archived !== undefined) {
       sets.push('archived = ?', 'archived_at = ?'), vals.push(patch.archived ? 1 : 0, patch.archived ? now() : null);
+      if (patch.archived) q('DELETE FROM claims WHERE task_id = ?').run(task.id);
       if (!patch.archived) {
         // restore to the bottom of its column (or the default column if that one is hidden)
         const col = getColumn(task.columnId);
@@ -659,6 +681,8 @@ export function moveTask(id, { columnId, index } = {}) {
       timer = `, timer_started_at = NULL, time_spent = time_spent + ${Math.max(0, extra)}`;
     }
     q(`UPDATE tasks SET column_id = ?, position = ?, completed_at = ?, updated_at = ?${timer} WHERE id = ?`).run(col.id, pos, completedAt, now(), task.id);
+    // finished work needs no "working on it" marker
+    if (col.isDone) q('DELETE FROM claims WHERE task_id = ?').run(task.id);
     return getTask(task.id);
   });
 }
@@ -1167,14 +1191,22 @@ const mapProposal = (r) =>
     items: JSON.parse(r.items),
     status: r.status,
     result: r.result ? JSON.parse(r.result) : null,
+    session: r.session || null,
+    basis: r.basis ? JSON.parse(r.basis) : null,
     createdAt: r.created_at,
     decidedAt: r.decided_at,
   };
 
-export function createProposal({ agent, actions, items }) {
+export function createProposal({ agent, actions, items, session = null, basis = null }) {
   return tx(() => {
     const id = Number(
-      q('INSERT INTO proposals (agent, actions, items) VALUES (?, ?, ?)').run(cleanText(agent || 'An agent', 'agent', { max: 80 }) || 'An agent', JSON.stringify(actions), JSON.stringify(items)).lastInsertRowid
+      q('INSERT INTO proposals (agent, actions, items, session, basis) VALUES (?, ?, ?, ?, ?)').run(
+        cleanText(agent || 'An agent', 'agent', { max: 80 }) || 'An agent',
+        JSON.stringify(actions),
+        JSON.stringify(items),
+        session,
+        basis ? JSON.stringify(basis) : null
+      ).lastInsertRowid
     );
     return getProposal(id);
   });
@@ -1202,6 +1234,69 @@ export function decideProposal(id, { status, result = null }) {
     q('UPDATE proposals SET status = ?, result = ?, decided_at = ? WHERE id = ?').run(status, result ? JSON.stringify(result) : null, now(), p.id);
     return getProposal(p.id);
   });
+}
+
+// ---------- claims: "an agent is working on this card" ----------
+// A claim is a lease, not a lock: it never blocks anyone, it expires on its own, and it is
+// refreshed whenever the agent touches the card. The MCP server releases its claims when
+// it exits, and finishing or archiving the card releases it too.
+
+export const CLAIM_MINUTES = 30;
+
+const mapClaim = (r) => r && { taskId: r.task_id, agent: r.agent, session: r.session, note: r.note, claimedAt: r.claimed_at, expiresAt: r.expires_at };
+const leaseEnd = (minutes = CLAIM_MINUTES) => new Date(Date.now() + minutes * 60000).toISOString();
+
+/** Active claims for these task ids. (Expired rows are ignored here and cleaned up on the next claim.) */
+function claimsFor(ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const rows = q('SELECT * FROM claims WHERE task_id IN (SELECT value FROM json_each(?)) AND expires_at > ?').all(JSON.stringify(ids), now());
+  for (const r of rows) out.set(r.task_id, mapClaim(r));
+  return out;
+}
+
+export function getClaim(taskId) {
+  return mapClaim(q('SELECT * FROM claims WHERE task_id = ? AND expires_at > ?').get(Number(taskId), now())) || null;
+}
+
+/**
+ * Mark a task as being worked on. Returns { claim } on success, or { heldBy } when another
+ * agent's claim is still active (nothing changes then; claims are advisory).
+ */
+export function claimTask(taskId, { agent, session, note = '' }) {
+  return tx(() => {
+    const task = getTask(taskId);
+    if (task.archived) throw new AppError(400, `#${task.id} is archived.`);
+    if (getColumn(task.columnId).isDone) throw new AppError(400, `#${task.id} is already done.`);
+    q('DELETE FROM claims WHERE expires_at <= ?').run(now());
+    const held = getClaim(task.id);
+    if (held && held.session !== session) return { heldBy: held };
+    const stamp = now();
+    q(
+      `INSERT INTO claims (task_id, agent, session, note, claimed_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(task_id) DO UPDATE SET note = excluded.note, expires_at = excluded.expires_at`
+    ).run(task.id, cleanText(agent, 'agent', { max: 80 }) || 'An agent', String(session), cleanText(note, 'note', { max: 200 }), stamp, leaseEnd());
+    return { claim: getClaim(task.id) };
+  });
+}
+
+/** Extend a claim this session holds (called whenever the agent touches the card). */
+export function refreshClaim(taskId, session) {
+  const r = q('UPDATE claims SET expires_at = ? WHERE task_id = ? AND session = ? AND expires_at > ?').run(leaseEnd(), Number(taskId), String(session), now());
+  return r.changes > 0;
+}
+
+/** Release a claim: an agent its own (with `session`), or the user any (without). */
+export function releaseClaim(taskId, { session } = {}) {
+  return tx(() => {
+    const r = session == null ? q('DELETE FROM claims WHERE task_id = ?').run(Number(taskId)) : q('DELETE FROM claims WHERE task_id = ? AND session = ?').run(Number(taskId), String(session));
+    return { released: r.changes > 0 };
+  });
+}
+
+/** Drop every claim of an agent session (when its MCP server exits). */
+export function releaseSession(session) {
+  return q('DELETE FROM claims WHERE session = ?').run(String(session)).changes;
 }
 
 /** VAPID keys for Web Push, created once per install. */

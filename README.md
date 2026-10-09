@@ -12,7 +12,7 @@
 Claude and Cursor plan and update tasks over MCP. **Agents propose, you approve**: every change waits for one tap.<br />
 Working with agents stays low-effort: one calm board, changes in plain words, nothing leaving your machine.
 
-[![MCP](https://img.shields.io/badge/MCP-19_tools-8a63d2)](#-work-with-your-ai-agents-mcp)
+[![MCP](https://img.shields.io/badge/MCP-21_tools-8a63d2)](#-work-with-your-ai-agents-mcp)
 [![Local-first](https://img.shields.io/badge/local--first-one_SQLite_file-0f80cc?logo=sqlite&logoColor=white)](#-who-its-for)
 [![AI](https://img.shields.io/badge/assistant-chat_%C2%B7_voice_%C2%B7_approvals-10a37f)](#-the-built-in-assistant)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.13-3c873a?logo=node.js&logoColor=white)](https://nodejs.org)
@@ -34,7 +34,7 @@ Working with agents stays low-effort: one calm board, changes in plain words, no
 <td width="33%" valign="top">
 
 ### 🤖 Agents work on your board
-Claude Code, Cursor and any MCP client get **19 tools** to plan work, break it into subtasks, log progress and finish tasks, through the same rules you use.
+Claude Code, Cursor and any MCP client get **21 tools** to plan work, break it into subtasks, log progress and finish tasks, through the same rules you use.
 
 </td>
 <td width="33%" valign="top">
@@ -77,6 +77,7 @@ I wanted the opposite: a task board that gets **calmer** as AI gets more capable
 - **Everything autosaves.** There's no Save button anywhere.
 - **Deadlines read like a person wrote them:** *Due in 3h*, *Overdue by 2d*.
 - **Agents ask first.** Their changes wait for your OK, spelled out in plain words, and you approve them in one tap.
+- **No lock states to manage:** an agent's "working on it" marker expires on its own, and stale changes are flagged before you approve them.
 - **The assistant proposes, you approve**, and it can't delete anything.
 - **Agents show up where you already look:** on the board, live, with no extra dashboard to check.
 - **Each reminder fires once**, and a burst arrives as a single summary.
@@ -124,7 +125,7 @@ Then just ask:
 > *"Log what you just did on #12 and mark it complete."*
 
 <details>
-<summary><b>All 19 MCP tools</b></summary>
+<summary><b>All 21 MCP tools</b></summary>
 
 | Tool | What it does |
 | --- | --- |
@@ -147,6 +148,8 @@ Then just ask:
 | `list_columns` | A project's columns with ids, hidden flags and the done column |
 | `list_tags` | Every tag with how many tasks and projects use it |
 | `get_request` | Whether a change request was approved, and the ids of anything it created |
+| `claim_task` | Mark a task as being worked on (a lease, not a lock; see below) |
+| `release_task` | Remove your "working on it" marker |
 
 </details>
 
@@ -158,6 +161,15 @@ By default, an agent can read everything but **can't change your board on its ow
 - Each change is spelled out in plain words, with a checkbox. Untick what you don't want, then **Apply**, or **Dismiss** the lot.
 - The agent is told what happened (`get_request`), including the ids of anything it created, so it can carry on.
 - Trust an agent? Switch the inbox to **Apply right away** and its changes land directly, live on the board.
+
+### 🤝 When two agents touch the same card
+
+Things stay predictable without locks to babysit:
+
+- **"Working on it" claims, not locks.** An agent can mark a card it's working on; the card shows *🤖 Claude Code is working on this*. Other agents still get through, but they're told, and their requests are flagged for you.
+- **Claims can't get stuck.** They expire after 30 minutes unless the agent keeps touching the card, vanish the moment the agent disconnects, clear when the card is done or archived, and you can **Release** one anytime. You can always edit a claimed card yourself.
+- **No stale overwrites.** Each request remembers the values it would replace. If you (or another agent) changed them since the agent asked, the change is flagged *"The title changed since Claude Code asked"* and starts unticked.
+- **Everything else is simple:** writes are one SQLite transaction at a time, edits only touch the fields they name, and notes are append-only, so two agents logging progress both keep their lines.
 
 The MCP server works on the same SQLite file as the app, so agents can read your board even when the web server isn't running. When it is, open tabs **update live** within about half a second.
 
@@ -354,7 +366,7 @@ flowchart LR
         direction TB
         API["⚡ <b>Fastify API</b><br/><small>server/index.js · REST + SSE</small>"]
         CHAT["✨ <b>Assistant</b><br/><small>chat.js · actions.js · voice</small>"]
-        MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 19 tools</small>"]
+        MCP["🔌 <b>MCP Server</b><br/><small>mcp/index.js · 21 tools</small>"]
         CORE["🧠 <b>Shared data layer</b><br/><small>server/db.js · rules &amp; validation</small>"]
         WATCH["👀 <b>Change watcher</b><br/><small>PRAGMA data_version</small>"]
     end
@@ -557,6 +569,7 @@ The AI provider (and optional voice models) is configured in the app (✨ → se
 Task Tracker is young and moving fast. Here's where it's heading, and **every item is open for contributors**. Comment on an issue (or open one) to claim it.
 
 ### ✅ Recently shipped
+- 🤝 **Multi-agent safety**: "working on it" claims that expire on their own, and warnings for changes made since an agent asked
 - ✋ **Agents ask first**: MCP changes wait in an approval inbox (or apply right away, your choice)
 - 🎙️ **Voice**: talk to the assistant and hear it answer, hands-free
 - ✅ **Assistant actions** with an approval card for every change, and plain-language errors

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- 🤝 **When two agents touch the same card:** agents can mark a card as being worked on (`claim_task` / `release_task`). Claims are leases, not locks: they expire after 30 minutes without activity, clear when the agent disconnects or the card is done, and you can release one anytime.
+- ⚠️ **No stale overwrites:** requests remember the values they'd replace; changes made since the agent asked are flagged and start unticked.
+- Side panels now close with a single Esc (the close button's tooltip no longer pops up on open).
+
 ## v1.0.0 · 2026-10-04
 
 The first stable release: a local-first task board for you and your AI agents.
